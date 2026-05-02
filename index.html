@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magazyn</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#f0f2f5; color:#1a1a2e; font-family:'Inter',sans-serif; min-height:100vh; }
+
+  /* LOGIN SCREEN */
+  .login-screen {
+    position:fixed; inset:0; background:#0f111a;
+    display:flex; align-items:center; justify-content:center;
+    z-index:1000; flex-direction:column; gap:32px;
+  }
+  .login-screen.hidden { display:none; }
+  .login-box {
+    background:#1e2235; border-radius:16px; padding:40px 48px;
+    border:1px solid #2a2d45; width:360px; text-align:center;
+  }
+  .login-title { font-size:22px; font-weight:700; color:#fff; margin-bottom:6px; }
+  .login-title span { color:#4ade80; }
+  .login-sub { font-size:12px; color:#555; margin-bottom:28px; font-family:'DM Mono',monospace; letter-spacing:1px; }
+  .login-input {
+    width:100%; background:#0f111a; border:1.5px solid #2a2d45;
+    border-radius:8px; padding:12px 16px; color:#fff;
+    font-family:'DM Mono',monospace; font-size:14px; outline:none;
+    margin-bottom:12px; text-align:center; letter-spacing:3px;
+    transition:border-color 0.2s;
+  }
+  .login-input:focus { border-color:#4ade8066; }
+  .login-btn {
+    width:100%; padding:12px; border:none; border-radius:8px;
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
+    cursor:pointer; margin-bottom:8px; transition:all 0.15s;
+  }
+  .login-btn-admin { background:#4ade80; color:#14532d; }
+  .login-btn-admin:hover { background:#22c55e; }
+  .login-btn-guest { background:transparent; color:#8890a8; border:1px solid #2a2d45; }
+  .login-btn-guest:hover { color:#fff; border-color:#4a4d65; }
+  .login-error { color:#f87171; font-size:12px; margin-top:4px; display:none; }
+
+  /* HEADER */
+  header { background:#1e2235; padding:0 36px; display:flex; align-items:center; box-shadow:0 2px 12px #0003; }
+  .logo { font-size:18px; font-weight:700; color:#fff; padding:20px 32px 20px 0; border-right:1px solid #ffffff18; margin-right:8px; letter-spacing:-0.5px; }
+  .logo span { color:#4ade80; }
+  .tabs { display:flex; flex:1; }
+  .tab-btn { padding:22px 28px; background:transparent; border:none; border-bottom:3px solid transparent; color:#8890a8; font-family:'Inter',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+  .tab-btn.active { color:#fff; border-bottom-color:#4ade80; }
+  .tab-btn:hover:not(.active) { color:#bbb; }
+  .header-right { display:flex; align-items:center; gap:16px; padding-left:16px; }
+  .author { font-size:11px; color:#8890a8; font-family:'DM Mono',monospace; letter-spacing:0.5px; white-space:nowrap; }
+  .author span { color:#4ade80; font-weight:500; }
+  .mode-badge { font-size:10px; font-family:'DM Mono',monospace; padding:4px 10px; border-radius:12px; font-weight:700; letter-spacing:1px; }
+  .mode-badge.admin { background:#4ade8022; color:#4ade80; border:1px solid #4ade8044; }
+  .mode-badge.guest { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b44; }
+  .logout-btn { font-size:11px; color:#555; background:transparent; border:1px solid #2a2d45; border-radius:6px; padding:5px 10px; cursor:pointer; font-family:'DM Mono',monospace; transition:all 0.2s; }
+  .logout-btn:hover { color:#fff; border-color:#4a4d65; }
+
+  /* SYNC STATUS */
+  .sync-bar { background:#1a1c2e; padding:6px 36px; font-size:11px; font-family:'DM Mono',monospace; color:#555; display:flex; align-items:center; gap:8px; }
+  .sync-dot { width:7px; height:7px; border-radius:50%; background:#555; }
+  .sync-dot.ok { background:#4ade80; }
+  .sync-dot.loading { background:#f59e0b; animation:pulse 1s infinite; }
+  .sync-dot.error { background:#ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* CONTENT */
+  .content { padding:28px 36px; max-width:1100px; margin:0 auto; }
+  .card { background:#fff; border-radius:14px; box-shadow:0 1px 4px #0001,0 4px 20px #0000000a; overflow:hidden; margin-bottom:24px; }
+  .card-header { padding:18px 24px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; background:#fafafa; }
+  .card-title { font-size:13px; font-weight:600; color:#555; }
+
+  /* GUEST BANNER */
+  .guest-banner { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 20px; margin-bottom:20px; font-size:13px; color:#92400e; display:none; }
+  .guest-banner.show { display:block; }
+
+  .filters { display:flex; gap:6px; flex-wrap:wrap; }
+  .filter-btn { padding:5px 14px; border-radius:20px; border:1.5px solid #e0e0e0; background:#fff; color:#888; font-family:'DM Mono',monospace; font-size:11px; font-weight:500; cursor:pointer; transition:all 0.15s; }
+  .filter-btn.f-ALL { border-color:#c7d2fe; background:#eef2ff; color:#6366f1; }
+  .filter-btn.f-UBR { border-color:#bbf7d0; background:#f0fdf4; color:#16a34a; }
+  .filter-btn.f-STA { border-color:#bfdbfe; background:#eff6ff; color:#2563eb; }
+  .filter-btn.f-NAR { border-color:#fde68a; background:#fffbeb; color:#d97706; }
+  .filter-btn.f-DEF { border-color:#e9d5ff; background:#faf5ff; color:#9333ea; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { padding:13px 20px; text-align:left; font-size:11px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:#999; background:#f8f9fb; border-bottom:2px solid #eee; }
+  td { padding:14px 20px; border-bottom:1px solid #f3f3f3; color:#333; vertical-align:middle; }
+  tbody tr:hover td { background:#f8faff; }
+  tbody tr:last-child td { border-bottom:none; }
+  .td-nr { color:#bbb; font-family:'DM Mono',monospace; font-size:12px; width:48px; }
+  .td-art { font-family:'DM Mono',monospace; font-weight:600; color:#1a1a2e; font-size:13px; }
+  .td-data { color:#aaa; font-family:'DM Mono',monospace; font-size:12px; }
+
+  .badge { display:inline-block; padding:3px 10px; border-radius:6px; font-family:'DM Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.5px; }
+  .badge-UBR { background:#dcfce7; color:#15803d; }
+  .badge-STA { background:#dbeafe; color:#1d4ed8; }
+  .badge-NAR { background:#fef3c7; color:#b45309; }
+  .badge-def { background:#f3e8ff; color:#7e22ce; }
+
+  .stan { font-weight:700; font-size:15px; font-family:'DM Mono',monospace; }
+  .stan-ok { color:#16a34a; }
+  .stan-low { color:#d97706; }
+  .stan-zero { color:#dc2626; }
+  .ilosc-in { color:#16a34a; font-weight:700; font-family:'DM Mono',monospace; font-size:14px; }
+  .ilosc-out { color:#dc2626; font-weight:700; font-family:'DM Mono',monospace; font-size:14px; }
+
+  .btn-actions { display:flex; gap:6px; }
+  .btn-del { background:transparent; border:1px solid #eee; border-radius:6px; color:#ccc; font-size:13px; cursor:pointer; padding:5px 9px; transition:all 0.15s; line-height:1; }
+  .btn-del:hover { background:#fff0f0; border-color:#fca5a5; color:#ef4444; }
+  .btn-rename { background:transparent; border:1px solid #eee; border-radius:6px; color:#aaa; font-size:13px; cursor:pointer; padding:5px 9px; transition:all 0.15s; line-height:1; }
+  .btn-rename:hover { background:#eff6ff; border-color:#93c5fd; color:#2563eb; }
+
+  .empty-row td { text-align:center; padding:52px; color:#ccc; font-size:13px; font-style:italic; }
+
+  .input-row { display:flex; gap:10px; padding:16px 20px; background:#f8f9fb; border-top:2px solid #eee; align-items:center; flex-wrap:wrap; }
+  .input-row input { background:#fff; border:1.5px solid #e0e0e0; border-radius:8px; padding:10px 14px; color:#1a1a2e; font-family:'Inter',sans-serif; font-size:13px; outline:none; flex:1; min-width:120px; transition:border-color 0.2s,box-shadow 0.2s; }
+  .input-row input:focus { border-color:#4ade80; box-shadow:0 0 0 3px #4ade8022; }
+  .input-row input.small { flex:0 0 80px; min-width:80px; text-align:center; }
+  .input-row input::placeholder { color:#bbb; }
+  .btn { border:none; border-radius:8px; padding:10px 22px; font-family:'Inter',sans-serif; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; transition:all 0.15s; box-shadow:0 1px 4px #0002; }
+  .btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px #0002; }
+  .btn-green { background:#4ade80; color:#14532d; }
+  .btn-red { background:#f87171; color:#7f1d1d; }
+  .btn-export { border:1.5px solid #bbf7d0; background:#f0fdf4; color:#15803d; border-radius:8px; padding:8px 18px; font-family:'Inter',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+  .btn-export:hover { background:#dcfce7; border-color:#4ade80; }
+
+  .toast { position:fixed; bottom:24px; right:24px; background:#1e2235; color:#4ade80; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:1px; padding:10px 18px; border-radius:8px; box-shadow:0 4px 16px #0003; opacity:0; transform:translateY(8px); transition:all 0.3s; pointer-events:none; }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-title">📦 <span>Magazyn</span></div>
+    <div class="login-sub">system ewidencji magazynowej</div>
+    <input class="login-input" type="password" id="loginInput" placeholder="• • • • • •" maxlength="20">
+    <div class="login-error" id="loginError">Nieprawidłowe hasło</div>
+    <button class="login-btn login-btn-admin" onclick="loginAdmin()">Zaloguj jako Admin</button>
+    <button class="login-btn login-btn-guest" onclick="loginGuest()">Wejdź jako Gość (tylko podgląd)</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">📦 <span>Magazyn</span></div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('magazyn',this)">Magazyn</button>
+    <button class="tab-btn" onclick="switchTab('przychod',this)">🟢 Przychód</button>
+    <button class="tab-btn" onclick="switchTab('rozchod',this)">🔴 Rozchód</button>
+  </div>
+  <div class="header-right">
+    <span class="mode-badge admin" id="modeBadge">ADMIN</span>
+    <button class="logout-btn" onclick="logout()">← Wyjdź</button>
+    <div class="author">autor: <span>Sergii Migur</span></div>
+  </div>
+</header>
+
+<div class="sync-bar">
+  <div class="sync-dot" id="syncDot"></div>
+  <span id="syncText">Łączenie z chmurą...</span>
+</div>
+
+<div class="content">
+  <div class="guest-banner" id="guestBanner">
+    👁 Tryb gościa — tylko podgląd. Aby edytować dane zaloguj się jako Admin.
+  </div>
+
+  <!-- MAGAZYN -->
+  <div id="tab-magazyn" class="tab-content active">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Lista artykułów</span>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <div class="filters" id="filters"></div>
+          <button class="btn-export" onclick="exportExcel()">⬇️ Eksport do Excel</button>
+        </div>
+      </div>
+      <table><thead><tr><th>Nr</th><th>Artykuł</th><th>Opis towaru</th><th>Grupa</th><th>Stan</th><th id="th-actions"></th></tr></thead>
+      <tbody id="mag-tbody"></tbody></table>
+      <div class="input-row" id="mag-input-row">
+        <input id="mag-art" placeholder="Artykuł (np. STA-001)" oninput="this.value=this.value.toUpperCase()">
+        <input id="mag-opis" placeholder="Opis towaru">
+        <button class="btn btn-green" onclick="addMagazyn()">+ Dodaj artykuł</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRZYCHÓD -->
+  <div id="tab-przychod" class="tab-content">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Przyjęcie towaru</span></div>
+      <table><thead><tr><th>Nr</th><th>Artykuł</th><th>Opis towaru</th><th>Grupa</th><th>Data</th><th>Ilość</th><th></th></tr></thead>
+      <tbody id="prz-tbody"></tbody></table>
+      <div class="input-row" id="prz-input-row">
+        <input id="prz-art" placeholder="Artykuł (np. UBR-001)" oninput="this.value=this.value.toUpperCase()">
+        <input id="prz-ilosc" class="small" type="number" min="1" value="1">
+        <button class="btn btn-green" onclick="addPrzychod()">+ Przyjmij</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROZCHÓD -->
+  <div id="tab-rozchod" class="tab-content">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Wydanie towaru</span></div>
+      <table><thead><tr><th>Nr</th><th>Artykuł</th><th>Opis towaru</th><th>Grupa</th><th>Data</th><th>Ilość</th><th></th></tr></thead>
+      <tbody id="roz-tbody"></tbody></table>
+      <div class="input-row" id="roz-input-row">
+        <input id="roz-art" placeholder="Artykuł (np. UBR-001)" oninput="this.value=this.value.toUpperCase()">
+        <input id="roz-ilosc" class="small" type="number" min="1" value="1">
+        <button class="btn btn-red" onclick="addRozchod()">− Wydaj</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">✓ Zapisano</div>
+
+<script>
+  // ─── CONFIG ───
+  const BIN_ID  = '69f47bdeaaba8821975bf512';
+  const API_KEY = '$2a$10$tekyZEnnY9xbf6mNa/Zf0O2zbBSRyiuz1oyCZAFh3suX2b7yolLMK';
+  const ADMIN_PASSWORD = 'magazyn';
+  const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+  // ─── STATE ───
+  let magazyn  = [];
+  let przychod = [];
+  let rozchod  = [];
+  let filterGrupa = 'ALL';
+  let isAdmin = false;
+  let isSaving = false;
+
+  // ─── LOGIN ───
+  function loginAdmin() {
+    const pwd = document.getElementById('loginInput').value;
+    if (pwd !== ADMIN_PASSWORD) {
+      document.getElementById('loginError').style.display = 'block';
+      return;
+    }
+    isAdmin = true;
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('modeBadge').textContent = 'ADMIN';
+    document.getElementById('modeBadge').className = 'mode-badge admin';
+    document.getElementById('guestBanner').classList.remove('show');
+    applyMode();
+    loadFromCloud();
+  }
+
+  function loginGuest() {
+    isAdmin = false;
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('modeBadge').textContent = 'GOŚĆ';
+    document.getElementById('modeBadge').className = 'mode-badge guest';
+    document.getElementById('guestBanner').classList.add('show');
+    applyMode();
+    loadFromCloud();
+  }
+
+  function logout() {
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('loginInput').value = '';
+    document.getElementById('loginError').style.display = 'none';
+  }
+
+  function applyMode() {
+    // Show/hide input rows and action buttons based on mode
+    ['mag-input-row','prz-input-row','roz-input-row'].forEach(id => {
+      document.getElementById(id).style.display = isAdmin ? 'flex' : 'none';
+    });
+    document.getElementById('th-actions').style.display = isAdmin ? '' : 'none';
+  }
+
+  document.getElementById('loginInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loginAdmin();
+  });
+
+  // ─── CLOUD ───
+  function setSyncStatus(status, text) {
+    const dot = document.getElementById('syncDot');
+    const txt = document.getElementById('syncText');
+    dot.className = 'sync-dot ' + status;
+    txt.textContent = text;
+  }
+
+  async function loadFromCloud() {
+    setSyncStatus('loading', 'Ładowanie danych z chmury...');
+    try {
+      const res = await fetch(BASE_URL + '/latest', {
+        method: 'GET',
+        headers: {
+          'X-Master-Key': API_KEY,
+          'X-Bin-Meta': 'false'
+        }
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      magazyn  = data.magazyn  || [];
+      przychod = data.przychod || [];
+      rozchod  = data.rozchod  || [];
+      setSyncStatus('ok', 'Dane zsynchronizowane — ' + new Date().toLocaleTimeString('pl-PL'));
+      render();
+    } catch(e) {
+      console.error('Load error:', e);
+      setSyncStatus('error', 'Błąd połączenia — dane lokalne');
+      magazyn  = JSON.parse(localStorage.getItem('mag_magazyn')  || '[]');
+      przychod = JSON.parse(localStorage.getItem('mag_przychod') || '[]');
+      rozchod  = JSON.parse(localStorage.getItem('mag_rozchod')  || '[]');
+      render();
+    }
+  }
+
+  async function saveToCloud() {
+    if (isSaving) return;
+    isSaving = true;
+    setSyncStatus('loading', 'Zapisywanie...');
+    try {
+      const res = await fetch(BASE_URL, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': API_KEY
+        },
+        body: JSON.stringify({ magazyn, przychod, rozchod })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      localStorage.setItem('mag_magazyn',  JSON.stringify(magazyn));
+      localStorage.setItem('mag_przychod', JSON.stringify(przychod));
+      localStorage.setItem('mag_rozchod',  JSON.stringify(rozchod));
+      setSyncStatus('ok', 'Zapisano — ' + new Date().toLocaleTimeString('pl-PL'));
+      showToast('✓ Zapisano w chmurze');
+    } catch(e) {
+      console.error('Save error:', e);
+      localStorage.setItem('mag_magazyn',  JSON.stringify(magazyn));
+      localStorage.setItem('mag_przychod', JSON.stringify(przychod));
+      localStorage.setItem('mag_rozchod',  JSON.stringify(rozchod));
+      setSyncStatus('error', 'Błąd zapisu — dane zapisane lokalnie');
+      showToast('⚠ Zapisano lokalnie');
+    }
+    isSaving = false;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  // ─── HELPERS ───
+  function getGrupa(art) { return art ? art.slice(0,3).toUpperCase() : ''; }
+  function today() { return new Date().toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit'}); }
+  function getOpis(art) { const f=magazyn.find(m=>m.artykul===art); return f?f.opis:'Brak opisu'; }
+  function getStan(art) {
+    const m=magazyn.find(x=>x.artykul===art);
+    const pi=m?m.pi:0;
+    const inn=przychod.filter(r=>r.artykul===art).reduce((s,r)=>s+r.ilosc,0);
+    const out=rozchod.filter(r=>r.artykul===art).reduce((s,r)=>s+r.ilosc,0);
+    return pi+inn-out;
+  }
+  function badgeHtml(g) {
+    const cls=['UBR','STA','NAR'].includes(g)?`badge-${g}`:'badge-def';
+    return `<span class="badge ${cls}">${g}</span>`;
+  }
+  function stanHtml(s) {
+    const cls=s>10?'stan-ok':s>0?'stan-low':'stan-zero';
+    return `<span class="stan ${cls}">${s}</span>`;
+  }
+  function filterClass(g) {
+    if(g==='ALL') return 'f-ALL';
+    if(['UBR','STA','NAR'].includes(g)) return `f-${g}`;
+    return 'f-DEF';
+  }
+
+  // ─── DELETE ───
+  function delMagazyn(id)  { if(!isAdmin||!confirm('Usunąć artykuł?')) return; magazyn=magazyn.filter(m=>m.id!==id); saveToCloud(); render(); }
+  function delPrzychod(id) { if(!isAdmin||!confirm('Usunąć wpis z Przychodu?')) return; przychod=przychod.filter(r=>r.id!==id); saveToCloud(); render(); }
+  function delRozchod(id)  { if(!isAdmin||!confirm('Usunąć wpis z Rozchodu?')) return; rozchod=rozchod.filter(r=>r.id!==id); saveToCloud(); render(); }
+
+  function zmienNazwe(id) {
+    if(!isAdmin) return;
+    const item=magazyn.find(m=>m.id===id);
+    if(!item) return;
+    const nowy=prompt(`Zmień opis dla "${item.artykul}":`, item.opis);
+    if(!nowy||nowy.trim()===''||nowy.trim()===item.opis) return;
+    const n=nowy.trim();
+    item.opis=n;
+    przychod.forEach(r=>{ if(r.artykul===item.artykul) r.opis=n; });
+    rozchod.forEach(r=>{  if(r.artykul===item.artykul) r.opis=n; });
+    saveToCloud(); render();
+  }
+
+  // ─── ADD ───
+  function addMagazyn() {
+    if(!isAdmin) return;
+    const art=document.getElementById('mag-art').value.trim();
+    const opis=document.getElementById('mag-opis').value.trim();
+    if(!art||!opis) return;
+    magazyn.push({id:Date.now(),artykul:art,opis,pi:0});
+    document.getElementById('mag-art').value='';
+    document.getElementById('mag-opis').value='';
+    saveToCloud(); render();
+  }
+  function addPrzychod() {
+    if(!isAdmin) return;
+    const art=document.getElementById('prz-art').value.trim();
+    const ilosc=parseInt(document.getElementById('prz-ilosc').value)||1;
+    if(!art) return;
+    przychod.push({id:Date.now(),artykul:art,opis:getOpis(art),grupa:getGrupa(art),data:today(),ilosc});
+    document.getElementById('prz-art').value='';
+    document.getElementById('prz-ilosc').value='1';
+    saveToCloud(); render();
+  }
+  function addRozchod() {
+    if(!isAdmin) return;
+    const art=document.getElementById('roz-art').value.trim();
+    const ilosc=parseInt(document.getElementById('roz-ilosc').value)||1;
+    if(!art) return;
+    rozchod.push({id:Date.now(),artykul:art,opis:getOpis(art),grupa:getGrupa(art),data:today(),ilosc});
+    document.getElementById('roz-art').value='';
+    document.getElementById('roz-ilosc').value='1';
+    saveToCloud(); render();
+  }
+
+  // ─── RENDER ───
+  function renderMagazyn() {
+    const grupy=['ALL',...new Set(magazyn.map(m=>getGrupa(m.artykul)))];
+    document.getElementById('filters').innerHTML=grupy.map(g=>{
+      const isActive=filterGrupa===g;
+      return `<button class="filter-btn ${isActive?filterClass(g):''}" onclick="setFilter('${g}')">${g}</button>`;
+    }).join('');
+    const filtered=filterGrupa==='ALL'?magazyn:magazyn.filter(m=>getGrupa(m.artykul)===filterGrupa);
+    document.getElementById('mag-tbody').innerHTML=filtered.length===0
+      ?`<tr class="empty-row"><td colspan="6">Brak artykułów${isAdmin?' — dodaj pierwszy powyżej':''}</td></tr>`
+      :filtered.map((m,i)=>`
+        <tr>
+          <td class="td-nr">${i+1}</td>
+          <td class="td-art">${m.artykul}</td>
+          <td>${m.opis}</td>
+          <td>${badgeHtml(getGrupa(m.artykul))}</td>
+          <td>${stanHtml(getStan(m.artykul))}</td>
+          <td style="display:${isAdmin?'':'none'}">
+            <div class="btn-actions">
+              <button class="btn-rename" onclick="zmienNazwe(${m.id})" title="Zmień opis">✏️</button>
+              <button class="btn-del" onclick="delMagazyn(${m.id})" title="Usuń">🗑</button>
+            </div>
+          </td>
+        </tr>`).join('');
+  }
+
+  function renderPrzychod() {
+    document.getElementById('prz-tbody').innerHTML=przychod.length===0
+      ?`<tr class="empty-row"><td colspan="7">Brak wpisów${isAdmin?' — przyjmij pierwszy towar':''}</td></tr>`
+      :przychod.map((r,i)=>`
+        <tr>
+          <td class="td-nr">${i+1}</td>
+          <td class="td-art">${r.artykul}</td>
+          <td>${r.opis}</td>
+          <td>${badgeHtml(r.grupa)}</td>
+          <td class="td-data">${r.data}</td>
+          <td class="ilosc-in">+${r.ilosc}</td>
+          <td>${isAdmin?`<button class="btn-del" onclick="delPrzychod(${r.id})" title="Usuń">🗑</button>`:''}</td>
+        </tr>`).join('');
+  }
+
+  function renderRozchod() {
+    document.getElementById('roz-tbody').innerHTML=rozchod.length===0
+      ?`<tr class="empty-row"><td colspan="7">Brak wpisów${isAdmin?' — wydaj pierwszy towar':''}</td></tr>`
+      :rozchod.map((r,i)=>`
+        <tr>
+          <td class="td-nr">${i+1}</td>
+          <td class="td-art">${r.artykul}</td>
+          <td>${r.opis}</td>
+          <td>${badgeHtml(r.grupa)}</td>
+          <td class="td-data">${r.data}</td>
+          <td class="ilosc-out">-${r.ilosc}</td>
+          <td>${isAdmin?`<button class="btn-del" onclick="delRozchod(${r.id})" title="Usuń">🗑</button>`:''}</td>
+        </tr>`).join('');
+  }
+
+  function render() { renderMagazyn(); renderPrzychod(); renderRozchod(); }
+  function setFilter(g) { filterGrupa=g; render(); }
+  function switchTab(name,btn) {
+    document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
+    document.getElementById(`tab-${name}`).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // ─── EXPORT EXCEL ───
+  function exportExcel() {
+    const wb = XLSX.utils.book_new();
+    function styleSheet(ws, headerColor, cols) {
+      ws['!cols'] = cols.map(w=>({wch:w}));
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for(let C=range.s.c;C<=range.e.c;C++) {
+        const addr=XLSX.utils.encode_cell({r:0,c:C});
+        if(!ws[addr]) continue;
+        ws[addr].s={font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{fgColor:{rgb:headerColor},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:{top:{style:'thin',color:{rgb:'CCCCCC'}},bottom:{style:'thin',color:{rgb:'CCCCCC'}},left:{style:'thin',color:{rgb:'CCCCCC'}},right:{style:'thin',color:{rgb:'CCCCCC'}}}};
+      }
+      for(let R=1;R<=range.e.r;R++) {
+        const bg=R%2===0?'F5F5F5':'FFFFFF';
+        for(let C=range.s.c;C<=range.e.c;C++) {
+          const addr=XLSX.utils.encode_cell({r:R,c:C});
+          if(!ws[addr]) ws[addr]={t:'s',v:''};
+          ws[addr].s={font:{sz:11},fill:{fgColor:{rgb:bg},patternType:'solid'},alignment:{vertical:'center',horizontal:C===2?'left':'center'},border:{top:{style:'thin',color:{rgb:'EEEEEE'}},bottom:{style:'thin',color:{rgb:'EEEEEE'}},left:{style:'thin',color:{rgb:'EEEEEE'}},right:{style:'thin',color:{rgb:'EEEEEE'}}}};
+        }
+      }
+    }
+    const magData=[['Nr','Artykuł','Opis towaru','Grupa','Stan']];
+    magazyn.forEach((m,i)=>magData.push([i+1,m.artykul,m.opis,getGrupa(m.artykul),getStan(m.artykul)]));
+    const wsMag=XLSX.utils.aoa_to_sheet(magData);
+    styleSheet(wsMag,'404040',[5,14,28,10,8]);
+    XLSX.utils.book_append_sheet(wb,wsMag,'Magazyn');
+
+    const przData=[['Nr','Artykuł','Opis towaru','Grupa','Data','Ilość']];
+    przychod.forEach((r,i)=>przData.push([i+1,r.artykul,r.opis,r.grupa,r.data,r.ilosc]));
+    const wsPrz=XLSX.utils.aoa_to_sheet(przData);
+    styleSheet(wsPrz,'16A34A',[5,14,28,10,10,8]);
+    XLSX.utils.book_append_sheet(wb,wsPrz,'Przychód');
+
+    const rozData=[['Nr','Artykuł','Opis towaru','Grupa','Data','Ilość']];
+    rozchod.forEach((r,i)=>rozData.push([i+1,r.artykul,r.opis,r.grupa,r.data,r.ilosc]));
+    const wsRoz=XLSX.utils.aoa_to_sheet(rozData);
+    styleSheet(wsRoz,'DC2626',[5,14,28,10,10,8]);
+    XLSX.utils.book_append_sheet(wb,wsRoz,'Rozchód');
+
+    const date=new Date().toLocaleDateString('pl-PL').replace(/\./g,'-');
+    XLSX.writeFile(wb,`Magazyn_${date}.xlsx`,{cellStyles:true});
+  }
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&isAdmin){
+      const a=document.querySelector('.tab-content.active');
+      if(a.id==='tab-magazyn') addMagazyn();
+      if(a.id==='tab-przychod') addPrzychod();
+      if(a.id==='tab-rozchod') addRozchod();
+    }
+  });
+</script>
+</body>
+</html>
