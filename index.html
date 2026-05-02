@@ -157,9 +157,16 @@
     .btn { padding:9px 14px; font-size:12px; }
     .btn-export { padding:7px 12px; font-size:11px; }
     .login-box { width:90%; padding:28px 24px; }
-    /* Hide less important columns on mobile */
-    th:nth-child(4), td:nth-child(4) { display:none; } /* Grupa */
-    th:nth-child(5), td:nth-child(5) { display:none; } /* Data */
+    /* Hide Grupa column on mobile (col 4) */
+    th:nth-child(4), td:nth-child(4) { display:none; }
+    /* In Magazyn: Stan is col 5 - keep visible */
+    /* In Przychod/Rozchod: Data is col 5 - hide it */
+    #tab-przychod th:nth-child(5), #tab-przychod td:nth-child(5) { display:none; }
+    #tab-rozchod th:nth-child(5), #tab-rozchod td:nth-child(5) { display:none; }
+    /* Action buttons col - hide on mobile */
+    #tab-magazyn th:nth-child(6), #tab-magazyn td:nth-child(6) { display:none; }
+    #tab-przychod th:nth-child(7), #tab-przychod td:nth-child(7) { display:none; }
+    #tab-rozchod th:nth-child(7), #tab-rozchod td:nth-child(7) { display:none; }
     .filters { gap:4px; }
     .filter-btn { padding:4px 10px; font-size:10px; }
     .guest-banner { font-size:12px; padding:10px 14px; }
