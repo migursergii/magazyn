@@ -4,6 +4,63 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Magazyn</title>
+<meta name="theme-color" content="#1e2235">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Magazyn">
+<script>
+// Generate icon via canvas and set as favicon + manifest
+window.addEventListener('load', function() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 192; canvas.height = 192;
+  const ctx = canvas.getContext('2d');
+  // Background
+  ctx.fillStyle = '#1e2235';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 192, 192, 36);
+  ctx.fill();
+  // Green accent bar
+  ctx.fillStyle = '#4ade80';
+  ctx.fillRect(0, 152, 192, 40);
+  ctx.beginPath();
+  ctx.roundRect(0, 152, 192, 40, [0,0,36,36]);
+  ctx.fill();
+  // Box icon
+  ctx.font = '110px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('📦', 96, 88);
+  // M letter
+  ctx.fillStyle = '#1e2235';
+  ctx.font = 'bold 28px Arial';
+  ctx.fillText('MAGAZYN', 96, 168);
+
+  const dataUrl = canvas.toDataURL('image/png');
+
+  // Set favicon
+  let link = document.querySelector("link[rel='icon']") || document.createElement('link');
+  link.rel = 'icon'; link.href = dataUrl;
+  document.head.appendChild(link);
+
+  // Set apple touch icon
+  let apple = document.querySelector("link[rel='apple-touch-icon']") || document.createElement('link');
+  apple.rel = 'apple-touch-icon'; apple.href = dataUrl;
+  document.head.appendChild(apple);
+
+  // Set manifest
+  const manifest = {
+    name: 'Magazyn', short_name: 'Magazyn',
+    start_url: '.', display: 'standalone',
+    background_color: '#1e2235', theme_color: '#1e2235',
+    icons: [{ src: dataUrl, sizes: '192x192', type: 'image/png' },
+            { src: dataUrl, sizes: '512x512', type: 'image/png' }]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const mlink = document.querySelector("link[rel='manifest']") || document.createElement('link');
+  mlink.rel = 'manifest'; mlink.href = URL.createObjectURL(blob);
+  document.head.appendChild(mlink);
+});
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -194,6 +251,7 @@
     <button class="tab-btn active" onclick="switchTab('magazyn',this)">Magazyn</button>
     <button class="tab-btn" onclick="switchTab('przychod',this)">🟢 Przychód</button>
     <button class="tab-btn" onclick="switchTab('rozchod',this)">🔴 Rozchód</button>
+    <button class="tab-btn" onclick="switchTab('qr',this)">📱 QR Kody</button>
   </div>
   <div class="header-right">
     <span class="mode-badge admin" id="modeBadge">ADMIN</span>
@@ -259,10 +317,42 @@
       </div>
     </div>
   </div>
+
+  <!-- QR KODY -->
+  <div id="tab-qr" class="tab-content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Kody QR artykułów</span>
+        <button class="btn-export" onclick="printAll()">🖨️ Drukuj wszystkie</button>
+      </div>
+      <div id="qr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;padding:24px;"></div>
+    </div>
+  </div>
 </div>
 
-<div class="toast" id="toast">✓ Zapisano</div>
+<div id="print-area" style="display:none;"></div>
 
+<style>
+  .qr-card {
+    background:#f8f9fb; border:1px solid #eee; border-radius:12px;
+    padding:16px; text-align:center; cursor:pointer;
+  }
+  .qr-card:hover { border-color:#4ade80; background:#f0fdf4; }
+  .qr-art { font-family:'DM Mono',monospace; font-weight:700; font-size:13px; color:#1a1a2e; margin-top:10px; }
+  .qr-opis { font-size:11px; color:#888; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .qr-print-btn { margin-top:10px; border:1px solid #e0e0e0; background:#fff; border-radius:6px; padding:5px 12px; font-size:11px; cursor:pointer; color:#555; }
+  .qr-print-btn:hover { border-color:#4ade80; color:#15803d; }
+  @media print {
+    body > *:not(#print-area) { display:none !important; }
+    #print-area { display:block !important; }
+    .print-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:10px; }
+    .print-item { text-align:center; border:1px solid #ddd; border-radius:8px; padding:12px; break-inside:avoid; }
+    .print-art { font-weight:700; font-size:13px; margin-top:8px; }
+    .print-opis { font-size:11px; color:#666; margin-top:2px; }
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
   // ─── CONFIG ───
   const BIN_ID  = '69f47bdeaaba8821975bf512';
@@ -532,6 +622,84 @@
     document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
     document.getElementById(`tab-${name}`).classList.add('active');
     btn.classList.add('active');
+    if(name==='qr') renderQR();
+  }
+
+  // ─── QR CODES ───
+  function renderQR() {
+    const grid = document.getElementById('qr-grid');
+    grid.innerHTML = '';
+    if(magazyn.length === 0) {
+      grid.innerHTML = '<p style="color:#ccc;font-style:italic;padding:20px;">Brak artykułów w magazynie</p>';
+      return;
+    }
+    magazyn.forEach(m => {
+      const card = document.createElement('div');
+      card.className = 'qr-card';
+      const qrDiv = document.createElement('div');
+      qrDiv.id = 'qr-' + m.id;
+      card.appendChild(qrDiv);
+      const art = document.createElement('div');
+      art.className = 'qr-art';
+      art.textContent = m.artykul;
+      card.appendChild(art);
+      const opis = document.createElement('div');
+      opis.className = 'qr-opis';
+      opis.textContent = m.opis;
+      card.appendChild(opis);
+      const printBtn = document.createElement('button');
+      printBtn.className = 'qr-print-btn';
+      printBtn.textContent = '🖨️ Drukuj ten';
+      printBtn.onclick = () => printOne(m);
+      card.appendChild(printBtn);
+      grid.appendChild(card);
+      new QRCode(qrDiv, {
+        text: m.artykul,
+        width: 120, height: 120,
+        colorDark: '#1a1a2e', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    });
+  }
+
+  function printOne(m) {
+    const area = document.getElementById('print-area');
+    const qrContainer = document.createElement('div');
+    qrContainer.style.cssText = 'text-align:center;padding:20px;';
+    new QRCode(qrContainer, {
+      text: m.artykul, width: 200, height: 200,
+      colorDark: '#1a1a2e', colorLight: '#ffffff'
+    });
+    setTimeout(() => {
+      area.innerHTML = `<div class="print-item" style="display:inline-block;text-align:center;border:1px solid #ddd;border-radius:8px;padding:16px;">
+        ${qrContainer.innerHTML}
+        <div class="print-art" style="font-weight:700;font-size:16px;margin-top:10px;">${m.artykul}</div>
+        <div class="print-opis" style="font-size:12px;color:#666;margin-top:4px;">${m.opis}</div>
+      </div>`;
+      area.style.display = 'block';
+      window.print();
+      area.style.display = 'none';
+    }, 300);
+  }
+
+  function printAll() {
+    const area = document.getElementById('print-area');
+    let html = '<div class="print-grid">';
+    magazyn.forEach(m => {
+      // Generate QR as canvas via temp element
+      const tmp = document.createElement('div');
+      new QRCode(tmp, { text: m.artykul, width: 140, height: 140, colorDark:'#1a1a2e', colorLight:'#fff' });
+      setTimeout(() => {}, 100);
+      html += `<div class="print-item">
+        ${tmp.innerHTML}
+        <div class="print-art">${m.artykul}</div>
+        <div class="print-opis">${m.opis}</div>
+      </div>`;
+    });
+    html += '</div>';
+    area.innerHTML = html;
+    area.style.display = 'block';
+    setTimeout(() => { window.print(); area.style.display = 'none'; }, 500);
   }
 
   // ─── EXPORT EXCEL ───
