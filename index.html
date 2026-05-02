@@ -460,18 +460,18 @@ window.addEventListener('load', function() {
       localStorage.setItem('mag_magazyn',  JSON.stringify(magazyn));
       localStorage.setItem('mag_przychod', JSON.stringify(przychod));
       localStorage.setItem('mag_rozchod',  JSON.stringify(rozchod));
-      setSyncStatus('error', 'Błąd zapisu — ponawiam za 10s...');
+      setSyncStatus('error', 'Błąd zapisu — ponawiam za 30s...');
       showToast('⚠ Zapisano lokalnie');
-      // Auto retry after 10 seconds
-      setTimeout(() => saveToCloud(), 10000);
+      // Auto retry after 30 seconds, only once
+      if(!retryTimer) {
+        retryTimer = setTimeout(() => { retryTimer = null; saveToCloud(); }, 30000);
+      }
     }
     isSaving = false;
   }
 
-  // Periodic sync every 2 minutes to keep connection alive
-  setInterval(() => {
-    if(isAdmin) saveToCloud();
-  }, 120000);
+  // Auto retry if failed - but only once per minute max
+  let retryTimer = null;
 
   function showToast(msg) {
     const t = document.getElementById('toast');
