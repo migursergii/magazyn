@@ -754,7 +754,83 @@ window.addEventListener('load', function() {
     }
   });
 
-  // ─── SCANNER ───
+  // ─── USB/BLUETOOTH SCANNER SUPPORT ───
+  // Scanners type fast and end with Enter - detect this pattern
+  let scanBuffer = '';
+  let scanTimer = null;
+
+  document.addEventListener('keypress', e => {
+    if(!isAdmin) return;
+    const active = document.querySelector('.tab-content.active');
+    if(!active || (active.id !== 'tab-przychod' && active.id !== 'tab-rozchod')) return;
+    // If focused on input, let it type normally
+    const focused = document.activeElement;
+    const isInput = focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA');
+    if(isInput) return;
+
+    if(e.key === 'Enter') {
+      if(scanBuffer.length > 2) {
+        const art = scanBuffer.toUpperCase().trim();
+        scanBuffer = '';
+        clearTimeout(scanTimer);
+        showScanConfirm(art, active.id);
+      }
+      return;
+    }
+    scanBuffer += e.key;
+    clearTimeout(scanTimer);
+    scanTimer = setTimeout(() => { scanBuffer = ''; }, 100);
+  });
+
+  // Also detect when scanner fills input and presses Enter quickly
+  function setupScannerInput(inputId, tab) {
+    const input = document.getElementById(inputId);
+    if(!input) return;
+    let lastLength = 0;
+    let quickFill = false;
+    input.addEventListener('input', () => {
+      if(input.value.length > lastLength + 2) quickFill = true;
+      lastLength = input.value.length;
+    });
+    input.addEventListener('keydown', e => {
+      if(e.key === 'Enter' && quickFill && input.value.length > 2) {
+        e.preventDefault();
+        const art = input.value.toUpperCase().trim();
+        input.value = '';
+        lastLength = 0; quickFill = false;
+        showScanConfirm(art, tab);
+      } else {
+        quickFill = false;
+      }
+    });
+  }
+
+  function showScanConfirm(art, tab) {
+    const opis = getOpis(art);
+    const isStan = opis !== 'Brak opisu';
+    const msg = isStan
+      ? `✅ Zeskanowano: ${art}\n📦 ${opis}\n\nIlość:`
+      : `⚠️ Artykuł "${art}" nie istnieje w magazynie!\n\nCzy mimo to dodać?\nIlość:`;
+    const ilosc = prompt(msg, '1');
+    if(ilosc === null) return; // cancelled
+    const qty = parseInt(ilosc) || 1;
+    if(tab === 'tab-przychod') {
+      przychod.push({id:Date.now(), artykul:art, opis:opis, grupa:getGrupa(art), data:today(), ilosc:qty});
+    } else {
+      rozchod.push({id:Date.now(), artykul:art, opis:opis, grupa:getGrupa(art), data:today(), ilosc:qty});
+    }
+    saveToCloud(); render();
+    showToast(`✓ Dodano: ${art} × ${qty}`);
+  }
+
+  // Initialize scanner input detection after login
+  const origLoginAdmin = loginAdmin;
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      setupScannerInput('prz-art', 'tab-przychod');
+      setupScannerInput('roz-art', 'tab-rozchod');
+    }, 1000);
+  });
   let html5QrCode = null;
   let scanTarget = null;
 
