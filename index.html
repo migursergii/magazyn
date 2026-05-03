@@ -367,7 +367,7 @@ window.addEventListener('load', function() {
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
   // ─── CONFIG ───
-  const BIN_ID  = '69f746c036566621a81d7b0d';
+  const BIN_ID  = '69f74aa336566621a81d899a';
   const API_KEY = '$2a$10$tekyZEnnY9xbf6mNa/Zf0O2zbBSRyiuz1oyCZAFh3suX2b7yolLMK';
   const ADMIN_PASSWORD = 'magazyn';
   const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
@@ -459,11 +459,10 @@ window.addEventListener('load', function() {
     }
   }
 
-  // ─── DEBOUNCED SAVE - max 1 request per 5 seconds ───
+  // ─── DEBOUNCED SAVE - max 1 request per 30 seconds ───
   let saveDebounceTimer = null;
   let pendingSave = false;
   let retryTimer = null;
-  let isSaving = false;
 
   function saveToCloud() {
     // Save locally immediately
