@@ -367,7 +367,7 @@ window.addEventListener('load', function() {
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
   // ─── CONFIG ───
-  const BIN_ID  = '69f47bdeaaba8821975bf512';
+  const BIN_ID  = '69f746c036566621a81d7b0d';
   const API_KEY = '$2a$10$tekyZEnnY9xbf6mNa/Zf0O2zbBSRyiuz1oyCZAFh3suX2b7yolLMK';
   const ADMIN_PASSWORD = 'magazyn';
   const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
@@ -459,42 +459,46 @@ window.addEventListener('load', function() {
     }
   }
 
-  async function saveToCloud() {
-    if (isSaving) return;
+  // ─── DEBOUNCED SAVE - max 1 request per 5 seconds ───
+  let saveDebounceTimer = null;
+  let pendingSave = false;
+  let retryTimer = null;
+  let isSaving = false;
+
+  function saveToCloud() {
+    // Save locally immediately
+    localStorage.setItem('mag_magazyn',  JSON.stringify(magazyn));
+    localStorage.setItem('mag_przychod', JSON.stringify(przychod));
+    localStorage.setItem('mag_rozchod',  JSON.stringify(rozchod));
+    // Schedule cloud save after 5 seconds
+    pendingSave = true;
+    clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(() => doCloudSave(), 30000);
+    setSyncStatus('loading', 'Zapisano lokalnie...');
+  }
+
+  async function doCloudSave() {
+    if(!pendingSave || isSaving) return;
+    pendingSave = false;
     isSaving = true;
-    setSyncStatus('loading', 'Zapisywanie...');
     try {
       const res = await fetch(BASE_URL, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': API_KEY
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
         body: JSON.stringify({ magazyn, przychod, rozchod })
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      localStorage.setItem('mag_magazyn',  JSON.stringify(magazyn));
-      localStorage.setItem('mag_przychod', JSON.stringify(przychod));
-      localStorage.setItem('mag_rozchod',  JSON.stringify(rozchod));
+      if(!res.ok) throw new Error('HTTP ' + res.status);
       setSyncStatus('ok', 'Zapisano — ' + new Date().toLocaleTimeString('pl-PL'));
-      showToast('✓ Zapisano w chmurze');
+      if(retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     } catch(e) {
-      console.error('Save error:', e);
-      localStorage.setItem('mag_magazyn',  JSON.stringify(magazyn));
-      localStorage.setItem('mag_przychod', JSON.stringify(przychod));
-      localStorage.setItem('mag_rozchod',  JSON.stringify(rozchod));
-      setSyncStatus('error', 'Błąd zapisu — ponawiam za 30s...');
-      showToast('⚠ Zapisano lokalnie');
-      // Auto retry after 30 seconds, only once
+      setSyncStatus('error', 'Błąd chmury — dane lokalne OK');
       if(!retryTimer) {
-        retryTimer = setTimeout(() => { retryTimer = null; saveToCloud(); }, 30000);
+        retryTimer = setTimeout(() => { retryTimer = null; pendingSave = true; doCloudSave(); }, 60000);
       }
     }
     isSaving = false;
   }
 
-  // Auto retry if failed - but only once per minute max
-  let retryTimer = null;
 
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -687,43 +691,55 @@ window.addEventListener('load', function() {
   }
 
   function printOne(m) {
-    const area = document.getElementById('print-area');
-    const qrContainer = document.createElement('div');
-    qrContainer.style.cssText = 'text-align:center;padding:20px;';
-    new QRCode(qrContainer, {
-      text: m.artykul, width: 200, height: 200,
-      colorDark: '#1a1a2e', colorLight: '#ffffff'
-    });
+    const win = window.open('', '_blank', 'width=400,height=500');
+    const qrDiv = document.createElement('div');
+    qrDiv.id = 'qr-tmp-' + m.id;
+    document.body.appendChild(qrDiv);
+    new QRCode(qrDiv, { text: m.artykul, width: 250, height: 250, colorDark:'#1a1a2e', colorLight:'#fff' });
     setTimeout(() => {
-      area.innerHTML = `<div class="print-item" style="display:inline-block;text-align:center;border:1px solid #ddd;border-radius:8px;padding:16px;">
-        ${qrContainer.innerHTML}
-        <div class="print-art" style="font-weight:700;font-size:16px;margin-top:10px;">${m.artykul}</div>
-        <div class="print-opis" style="font-size:12px;color:#666;margin-top:4px;">${m.opis}</div>
-      </div>`;
-      area.style.display = 'block';
-      window.print();
-      area.style.display = 'none';
+      const qrHtml = qrDiv.innerHTML;
+      document.body.removeChild(qrDiv);
+      win.document.write(`<!DOCTYPE html><html><body style="text-align:center;font-family:Arial;padding:30px;">
+        ${qrHtml}
+        <div style="font-weight:700;font-size:20px;margin-top:12px;">${m.artykul}</div>
+        <div style="font-size:14px;color:#666;margin-top:6px;">${m.opis}</div>
+        <script>window.print();window.close();<\/script>
+      </body></html>`);
+      win.document.close();
     }, 300);
   }
 
   function printAll() {
-    const area = document.getElementById('print-area');
-    let html = '<div class="print-grid">';
-    magazyn.forEach(m => {
-      // Generate QR as canvas via temp element
-      const tmp = document.createElement('div');
-      new QRCode(tmp, { text: m.artykul, width: 140, height: 140, colorDark:'#1a1a2e', colorLight:'#fff' });
-      setTimeout(() => {}, 100);
-      html += `<div class="print-item">
-        ${tmp.innerHTML}
-        <div class="print-art">${m.artykul}</div>
-        <div class="print-opis">${m.opis}</div>
-      </div>`;
+    const win = window.open('', '_blank', 'width=800,height=600');
+    const tmpDiv = document.createElement('div');
+    document.body.appendChild(tmpDiv);
+    let items = [];
+    let done = 0;
+    if(magazyn.length === 0) { win.close(); return; }
+    magazyn.forEach((m, i) => {
+      const d = document.createElement('div');
+      d.id = 'qr-print-' + i;
+      tmpDiv.appendChild(d);
+      new QRCode(d, { text: m.artykul, width: 140, height: 140, colorDark:'#1a1a2e', colorLight:'#fff' });
+      setTimeout(() => {
+        items[i] = `<div style="text-align:center;border:1px solid #ddd;border-radius:8px;padding:12px;break-inside:avoid;">
+          ${d.innerHTML}
+          <div style="font-weight:700;font-size:13px;margin-top:8px;">${m.artykul}</div>
+          <div style="font-size:11px;color:#666;margin-top:2px;">${m.opis}</div>
+        </div>`;
+        done++;
+        if(done === magazyn.length) {
+          document.body.removeChild(tmpDiv);
+          win.document.write(`<!DOCTYPE html><html><body style="font-family:Arial;">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:10px;">
+              ${items.join('')}
+            </div>
+            <script>window.print();window.close();<\/script>
+          </body></html>`);
+          win.document.close();
+        }
+      }, 400);
     });
-    html += '</div>';
-    area.innerHTML = html;
-    area.style.display = 'block';
-    setTimeout(() => { window.print(); area.style.display = 'none'; }, 500);
   }
 
   // ─── EXPORT EXCEL ───
