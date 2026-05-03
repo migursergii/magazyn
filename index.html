@@ -388,6 +388,7 @@ window.addEventListener('load', function() {
       return;
     }
     isAdmin = true;
+    sessionStorage.setItem('mag_session', 'admin');
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('modeBadge').textContent = 'ADMIN';
     document.getElementById('modeBadge').className = 'mode-badge admin';
@@ -398,6 +399,7 @@ window.addEventListener('load', function() {
 
   function loginGuest() {
     isAdmin = false;
+    sessionStorage.setItem('mag_session', 'guest');
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('modeBadge').textContent = 'GOŚĆ';
     document.getElementById('modeBadge').className = 'mode-badge guest';
@@ -407,10 +409,37 @@ window.addEventListener('load', function() {
   }
 
   function logout() {
+    sessionStorage.removeItem('mag_session');
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('loginInput').value = '';
     document.getElementById('loginError').style.display = 'none';
   }
+
+  // Auto-login from session on page refresh
+  window.addEventListener('load', () => {
+    const session = sessionStorage.getItem('mag_session');
+    if(session === 'admin') {
+      isAdmin = true;
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('modeBadge').textContent = 'ADMIN';
+      document.getElementById('modeBadge').className = 'mode-badge admin';
+      document.getElementById('guestBanner').classList.remove('show');
+      applyMode();
+      loadFromCloud();
+    } else if(session === 'guest') {
+      isAdmin = false;
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('modeBadge').textContent = 'GOŚĆ';
+      document.getElementById('modeBadge').className = 'mode-badge guest';
+      document.getElementById('guestBanner').classList.add('show');
+      applyMode();
+      loadFromCloud();
+    }
+    setTimeout(() => {
+      setupScannerInput('prz-art', 'tab-przychod');
+      setupScannerInput('roz-art', 'tab-rozchod');
+    }, 1000);
+  });
 
   function applyMode() {
     // Show/hide input rows and action buttons based on mode
@@ -878,12 +907,6 @@ window.addEventListener('load', function() {
 
   // Initialize scanner input detection after login
   const origLoginAdmin = loginAdmin;
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      setupScannerInput('prz-art', 'tab-przychod');
-      setupScannerInput('roz-art', 'tab-rozchod');
-    }, 1000);
-  });
   let html5QrCode = null;
   let scanTarget = null;
 
