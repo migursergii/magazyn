@@ -310,6 +310,29 @@ window.addEventListener('load', function() {
 
 <div id="print-area" style="display:none;"></div>
 
+<!-- SCAN CONFIRM MODAL -->
+<div class="scanner-modal hidden" id="scanConfirmModal">
+  <div class="scanner-box" style="width:320px;">
+    <div class="scanner-title">✅ Zeskanowano</div>
+    <div style="background:#f0fdf4;border-radius:8px;padding:14px;margin-bottom:16px;text-align:left;">
+      <div style="font-family:'DM Mono',monospace;font-weight:700;font-size:18px;color:#1a1a2e;" id="scan-art-name"></div>
+      <div style="font-size:13px;margin-top:4px;" id="scan-opis-name"></div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="color:#8890a8;font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1px;display:block;margin-bottom:8px;">ILOŚĆ</label>
+      <input id="scan-ilosc-input" type="number" min="1" value="1"
+        style="width:100%;background:#0f111a;border:1.5px solid #4ade8044;border-radius:8px;padding:12px;color:#fff;font-family:'DM Mono',monospace;font-size:22px;text-align:center;outline:none;"
+        onkeydown="if(event.key==='Enter') confirmScan()">
+    </div>
+    <input type="hidden" id="scan-tab">
+    <input type="hidden" id="scan-art-val">
+    <div style="display:flex;gap:10px;">
+      <button onclick="cancelScan()" style="flex:1;padding:12px;border:1px solid #2a2d45;background:transparent;color:#8890a8;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Anuluj</button>
+      <button onclick="confirmScan()" style="flex:2;padding:12px;border:none;background:#4ade80;color:#14532d;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">✓ Zatwierdź</button>
+    </div>
+  </div>
+</div>
+
 <!-- SCANNER MODAL -->
 <div class="scanner-modal hidden" id="scannerModal">
   <div class="scanner-box">
@@ -807,20 +830,35 @@ window.addEventListener('load', function() {
 
   function showScanConfirm(art, tab) {
     const opis = getOpis(art);
-    const isStan = opis !== 'Brak opisu';
-    const msg = isStan
-      ? `✅ Zeskanowano: ${art}\n📦 ${opis}\n\nIlość:`
-      : `⚠️ Artykuł "${art}" nie istnieje w magazynie!\n\nCzy mimo to dodać?\nIlość:`;
-    const ilosc = prompt(msg, '1');
-    if(ilosc === null) return; // cancelled
-    const qty = parseInt(ilosc) || 1;
+    const exists = opis !== 'Brak opisu';
+    const modal = document.getElementById('scanConfirmModal');
+    document.getElementById('scan-art-name').textContent = art;
+    document.getElementById('scan-opis-name').textContent = exists ? opis : '⚠️ Nieznany artykuł';
+    document.getElementById('scan-opis-name').style.color = exists ? '#16a34a' : '#ef4444';
+    document.getElementById('scan-ilosc-input').value = '1';
+    document.getElementById('scan-tab').value = tab;
+    document.getElementById('scan-art-val').value = art;
+    modal.classList.remove('hidden');
+    setTimeout(() => document.getElementById('scan-ilosc-input').focus(), 100);
+  }
+
+  function confirmScan() {
+    const art = document.getElementById('scan-art-val').value;
+    const tab = document.getElementById('scan-tab').value;
+    const qty = parseInt(document.getElementById('scan-ilosc-input').value) || 1;
+    const opis = getOpis(art);
     if(tab === 'tab-przychod') {
-      przychod.push({id:Date.now(), artykul:art, opis:opis, grupa:getGrupa(art), data:today(), ilosc:qty});
+      przychod.push({id:Date.now(), artykul:art, opis, grupa:getGrupa(art), data:today(), ilosc:qty});
     } else {
-      rozchod.push({id:Date.now(), artykul:art, opis:opis, grupa:getGrupa(art), data:today(), ilosc:qty});
+      rozchod.push({id:Date.now(), artykul:art, opis, grupa:getGrupa(art), data:today(), ilosc:qty});
     }
+    document.getElementById('scanConfirmModal').classList.add('hidden');
     saveToCloud(); render();
-    showToast(`✓ Dodano: ${art} × ${qty}`);
+    showToast(`✓ ${art} × ${qty}`);
+  }
+
+  function cancelScan() {
+    document.getElementById('scanConfirmModal').classList.add('hidden');
   }
 
   // Initialize scanner input detection after login
