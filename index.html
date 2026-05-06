@@ -169,15 +169,18 @@ window.addEventListener('load', function() {
 
   /* MOBILE */
   @media (max-width: 600px) {
-    header { padding:0 12px; flex-wrap:wrap; }
-    .logo { padding:14px 16px 14px 0; font-size:16px; border-right:none; margin-right:0; }
+    header { padding:0; flex-wrap:wrap; }
+    .logo { padding:14px 16px; font-size:16px; border-right:none; margin-right:0; flex:1; }
+    .header-right { padding-right:12px; gap:8px; }
+    .author { display:none; }
+    .mode-badge { font-size:10px; padding:4px 10px; }
+    .logout-btn { font-size:11px; padding:6px 12px; }
+    /* Tabs full width on own row, bigger buttons */
     .tabs { width:100%; border-top:1px solid #ffffff10; order:3; overflow-x:auto; -webkit-overflow-scrolling:touch; flex-wrap:nowrap; }
     .tabs::-webkit-scrollbar { display:none; }
-    .tab-btn { padding:12px 14px; font-size:11px; flex-shrink:0; }
-    .header-right { margin-left:auto; gap:8px; }
-    .author { display:none; }
-    .mode-badge { font-size:9px; padding:3px 8px; }
-    .logout-btn { font-size:10px; padding:4px 8px; }
+    .tab-btn { padding:14px 18px; font-size:12px; flex-shrink:0; }
+    /* Wyjdź on separate row */
+    .logout-row { display:flex; width:100%; justify-content:flex-end; padding:6px 12px; background:#1e2235; border-top:1px solid #ffffff10; order:4; }
     .sync-bar { padding:5px 12px; font-size:10px; }
     .content { padding:12px; }
     .card-header { padding:12px 14px; flex-direction:column; align-items:flex-start; }
@@ -194,8 +197,6 @@ window.addEventListener('load', function() {
     .login-box { width:90%; padding:28px 24px; }
     /* Hide Grupa column on mobile (col 4) */
     th:nth-child(4), td:nth-child(4) { display:none; }
-    /* In Magazyn: Stan is col 5 - keep visible */
-    /* In Przychod/Rozchod: Data is col 5 - hide it */
     #tab-przychod th:nth-child(5), #tab-przychod td:nth-child(5) { display:none; }
     #tab-rozchod th:nth-child(5), #tab-rozchod td:nth-child(5) { display:none; }
     /* Zamowienia table - hide less important cols on mobile */
@@ -227,6 +228,10 @@ window.addEventListener('load', function() {
 
 <header>
   <div class="logo">📦 <span>Magazyn</span></div>
+  <div class="header-right">
+    <span class="mode-badge admin" id="modeBadge">ADMIN</span>
+    <button class="logout-btn" onclick="logout()" style="display:none;" id="logout-desktop">← Wyjdź</button>
+  </div>
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('magazyn',this)">Magazyn</button>
     <button class="tab-btn" onclick="switchTab('przychod',this)">🟢 Przychód</button>
@@ -234,11 +239,7 @@ window.addEventListener('load', function() {
     <button class="tab-btn" id="tab-btn-zam" onclick="switchTab('zamowienia',this)" style="display:none">📋 Zamówienia</button>
     <button class="tab-btn" onclick="switchTab('qr',this)">📱 QR Kody</button>
     <button class="tab-btn" id="tab-btn-bry" onclick="switchTab('brygadzisci',this)" style="display:none">👷 Brygadziści</button>
-  </div>
-  <div class="header-right">
-    <span class="mode-badge admin" id="modeBadge">ADMIN</span>
-    <button class="logout-btn" onclick="logout()">← Wyjdź</button>
-    <div class="author">autor: <span>Sergii Migur</span></div>
+    <button class="tab-btn" onclick="logout()" style="margin-left:auto;color:#ef4444;border-bottom-color:transparent;">← Wyjdź</button>
   </div>
 </header>
 
@@ -463,19 +464,44 @@ window.addEventListener('load', function() {
 
   function loginBrygadzista() {
     const pwd = document.getElementById('loginInput').value;
-    const found = brygadzisci.find(b => b.haslo && b.haslo === pwd && b.imie);
-    if (!found) {
-      document.getElementById('loginError').style.display = 'block';
-      document.getElementById('loginError').textContent = 'Nieprawidłowe hasło lub brak uprawnień';
-      return;
+    // First try with already-loaded brygadzisci
+    const tryLogin = () => {
+      const found = brygadzisci.find(b => b.haslo && b.haslo === pwd && b.imie);
+      if (!found) {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginError').textContent = 'Nieprawidłowe hasło lub brak uprawnień';
+        return false;
+      }
+      isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
+      sessionStorage.setItem('mag_session', 'brygadzista_' + found.id);
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
+      document.getElementById('modeBadge').className = 'mode-badge brygadzista';
+      document.getElementById('guestBanner').classList.remove('show');
+      applyMode(); render();
+      return true;
+    };
+
+    // If brygadzisci not loaded yet - load from cloud first
+    if(brygadzisci.every(b => !b.imie)) {
+      setSyncStatus('loading', 'Ładowanie...');
+      fetch(BASE_URL + '/latest', { method:'GET', headers:{'X-Master-Key':API_KEY,'X-Bin-Meta':'false'} })
+        .then(r => r.json())
+        .then(data => {
+          if(data.brygadzisci && data.brygadzisci.length === 10) brygadzisci = data.brygadzisci;
+          magazyn = data.magazyn || []; przychod = data.przychod || [];
+          rozchod = data.rozchod || []; zamowienia = data.zamowienia || [];
+          if(!tryLogin()) setSyncStatus('error', 'Błąd logowania');
+          else setSyncStatus('ok', 'Zalogowano');
+        })
+        .catch(() => {
+          const saved = localStorage.getItem('mag_brygadzisci');
+          if(saved) brygadzisci = JSON.parse(saved);
+          tryLogin();
+        });
+    } else {
+      tryLogin();
     }
-    isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
-    sessionStorage.setItem('mag_session', 'brygadzista_' + found.id);
-    document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
-    document.getElementById('modeBadge').className = 'mode-badge brygadzista';
-    document.getElementById('guestBanner').classList.remove('show');
-    applyMode(); loadFromCloud();
   }
 
   function logout() {
@@ -913,22 +939,36 @@ window.addEventListener('load', function() {
     tbody.innerHTML = brygadzisci.map(b => `
       <tr>
         <td class="td-nr">${b.id}</td>
-        <td><input value="${b.imie}" placeholder="Imię"
-          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:120px;"
-          onchange="updateBry(${b.id},'imie',this.value)"></td>
-        <td><input value="${b.nazwisko}" placeholder="Nazwisko"
-          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:140px;"
-          onchange="updateBry(${b.id},'nazwisko',this.value)"></td>
-        <td><input value="${b.haslo}" placeholder="Hasło"
-          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:120px;font-family:'DM Mono',monospace;"
-          onchange="updateBry(${b.id},'haslo',this.value)"></td>
-        <td><button class="btn-del" onclick="clearBry(${b.id})" title="Wyczyść">🗑</button></td>
+        <td><input value="${b.imie}" placeholder="Imię" id="bry-imie-${b.id}"
+          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:110px;"></td>
+        <td><input value="${b.nazwisko}" placeholder="Nazwisko" id="bry-nazwisko-${b.id}"
+          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:130px;"></td>
+        <td><input value="${b.haslo}" placeholder="Hasło" id="bry-haslo-${b.id}"
+          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:110px;font-family:'DM Mono',monospace;"></td>
+        <td>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button onclick="saveBry(${b.id})" 
+              style="background:#4ade80;color:#14532d;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;">
+              💾 Zapisz
+            </button>
+            <button class="btn-del" onclick="clearBry(${b.id})" title="Wyczyść">🗑</button>
+          </div>
+          <div id="bry-saved-${b.id}" style="display:none;color:#16a34a;font-size:11px;margin-top:4px;font-family:'DM Mono',monospace;">✓ Zapisano</div>
+        </td>
       </tr>`).join('');
   }
 
-  function updateBry(id, field, value) {
+  function saveBry(id) {
     const b = brygadzisci.find(x => x.id === id);
-    if(b) { b[field] = value.trim(); saveToCloud(); }
+    if(b) {
+      b.imie = document.getElementById('bry-imie-'+id).value.trim();
+      b.nazwisko = document.getElementById('bry-nazwisko-'+id).value.trim();
+      b.haslo = document.getElementById('bry-haslo-'+id).value.trim();
+      saveToCloud();
+      const msg = document.getElementById('bry-saved-'+id);
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 2000);
+    }
   }
 
   function clearBry(id) {
