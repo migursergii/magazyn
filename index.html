@@ -79,7 +79,8 @@ window.addEventListener('load', function() {
   .mode-badge { font-size:10px; font-family:'DM Mono',monospace; padding:4px 10px; border-radius:12px; font-weight:700; letter-spacing:1px; }
   .mode-badge.admin { background:#4ade8022; color:#4ade80; border:1px solid #4ade8044; }
   .mode-badge.guest { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b44; }
-  .logout-btn { font-size:11px; color:#555; background:transparent; border:1px solid #2a2d45; border-radius:6px; padding:5px 10px; cursor:pointer; font-family:'DM Mono',monospace; transition:all 0.2s; }
+  .mode-badge.brygadzista { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b44; }
+  .login-btn-bry { background:#f59e0b; color:#000; margin-bottom:8px; }
   .logout-btn:hover { color:#fff; border-color:#4a4d65; }
 
   /* SYNC STATUS */
@@ -170,8 +171,9 @@ window.addEventListener('load', function() {
   @media (max-width: 600px) {
     header { padding:0 12px; flex-wrap:wrap; }
     .logo { padding:14px 16px 14px 0; font-size:16px; border-right:none; margin-right:0; }
-    .tabs { width:100%; border-top:1px solid #ffffff10; order:3; }
-    .tab-btn { padding:12px 16px; font-size:12px; flex:1; text-align:center; }
+    .tabs { width:100%; border-top:1px solid #ffffff10; order:3; overflow-x:auto; -webkit-overflow-scrolling:touch; flex-wrap:nowrap; }
+    .tabs::-webkit-scrollbar { display:none; }
+    .tab-btn { padding:12px 14px; font-size:11px; flex-shrink:0; }
     .header-right { margin-left:auto; gap:8px; }
     .author { display:none; }
     .mode-badge { font-size:9px; padding:3px 8px; }
@@ -196,8 +198,9 @@ window.addEventListener('load', function() {
     /* In Przychod/Rozchod: Data is col 5 - hide it */
     #tab-przychod th:nth-child(5), #tab-przychod td:nth-child(5) { display:none; }
     #tab-rozchod th:nth-child(5), #tab-rozchod td:nth-child(5) { display:none; }
-    /* Action buttons col - hide on mobile */
-    #tab-magazyn th:nth-child(6), #tab-magazyn td:nth-child(6) { display:none; }
+    /* Zamowienia table - hide less important cols on mobile */
+    #tab-zamowienia th:nth-child(6), #tab-zamowienia td:nth-child(6) { display:none; } /* Data */
+    #tab-brygadzisci th:nth-child(4) { display:none; } /* hide nothing, show all */
     #tab-przychod th:nth-child(7), #tab-przychod td:nth-child(7) { display:none; }
     #tab-rozchod th:nth-child(7), #tab-rozchod td:nth-child(7) { display:none; }
     .filters { gap:4px; }
@@ -217,6 +220,7 @@ window.addEventListener('load', function() {
     <input class="login-input" type="password" id="loginInput" placeholder="• • • • • •" maxlength="20">
     <div class="login-error" id="loginError">Nieprawidłowe hasło</div>
     <button class="login-btn login-btn-admin" onclick="loginAdmin()">Zaloguj jako Admin</button>
+    <button class="login-btn login-btn-bry" onclick="loginBrygadzista()">Zaloguj jako Brygadzista</button>
     <button class="login-btn login-btn-guest" onclick="loginGuest()">Wejdź jako Gość (tylko podgląd)</button>
   </div>
 </div>
@@ -227,7 +231,9 @@ window.addEventListener('load', function() {
     <button class="tab-btn active" onclick="switchTab('magazyn',this)">Magazyn</button>
     <button class="tab-btn" onclick="switchTab('przychod',this)">🟢 Przychód</button>
     <button class="tab-btn" onclick="switchTab('rozchod',this)">🔴 Rozchód</button>
+    <button class="tab-btn" id="tab-btn-zam" onclick="switchTab('zamowienia',this)" style="display:none">📋 Zamówienia</button>
     <button class="tab-btn" onclick="switchTab('qr',this)">📱 QR Kody</button>
+    <button class="tab-btn" id="tab-btn-bry" onclick="switchTab('brygadzisci',this)" style="display:none">👷 Brygadziści</button>
   </div>
   <div class="header-right">
     <span class="mode-badge admin" id="modeBadge">ADMIN</span>
@@ -310,6 +316,50 @@ window.addEventListener('load', function() {
 
 <div id="print-area" style="display:none;"></div>
 
+  <!-- ZAMÓWIENIA -->
+  <div id="tab-zamowienia" class="tab-content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="zam-title">Zamówienia</span>
+      </div>
+      <div id="zam-brygadzista-form" style="display:none;">
+        <div style="padding:20px 24px;background:#f8f9fb;border-bottom:2px solid #eee;">
+          <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:12px;">Zaznacz artykuły do zamówienia:</div>
+          <div id="zam-filters" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;"></div>
+          <div id="zam-artykul-list"></div>
+          <div style="margin-top:20px;padding-top:16px;border-top:2px dashed #e0e0e0;">
+            <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:12px;">➕ Inne zamówienie (artykuł spoza listy):</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <input id="zam-opis-free" placeholder="Opisz co potrzebujesz..."
+                style="flex:1;min-width:200px;border:1.5px solid #e0e0e0;border-radius:8px;padding:10px 14px;font-size:13px;outline:none;">
+              <input id="zam-qty-free" type="number" min="1" value="1" placeholder="Ilość"
+                style="width:80px;border:1.5px solid #e0e0e0;border-radius:8px;padding:10px;font-size:13px;text-align:center;">
+            </div>
+          </div>
+          <button class="btn btn-green" style="margin-top:16px;" onclick="submitZamowienie()">📤 Wyślij zamówienie</button>
+        </div>
+      </div>
+      <table><thead><tr>
+        <th>Nr</th><th>Artykuł</th><th>Opis towaru</th><th>Ilość</th><th>Zamawiający</th><th>Data</th><th>Status</th>
+        <th id="zam-th-actions"></th>
+      </tr></thead>
+      <tbody id="zam-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- BRYGADZIŚCI (tylko admin) -->
+  <div id="tab-brygadzisci" class="tab-content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Zarządzanie brygadzistami — hasła dostępu</span>
+      </div>
+      <table>
+        <thead><tr><th>Nr</th><th>Imię</th><th>Nazwisko</th><th>Hasło</th><th></th></tr></thead>
+        <tbody id="bry-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
 <!-- SCAN CONFIRM MODAL -->
 <div class="scanner-modal hidden" id="scanConfirmModal">
   <div class="scanner-box" style="width:320px;">
@@ -376,8 +426,13 @@ window.addEventListener('load', function() {
   let magazyn  = [];
   let przychod = [];
   let rozchod  = [];
+  let zamowienia = [];
+  let brygadzisci = Array(10).fill(null).map((_,i) => ({id: i+1, imie:'', nazwisko:'', haslo:''}));
   let filterGrupa = 'ALL';
+  let zamFilterGrupa = 'ALL';
   let isAdmin = false;
+  let isBrygadzista = false;
+  let currentBrygadzista = null; // {id, imie, nazwisko}
   let isSaving = false;
 
   // ─── LOGIN ───
@@ -387,53 +442,84 @@ window.addEventListener('load', function() {
       document.getElementById('loginError').style.display = 'block';
       return;
     }
-    isAdmin = true;
+    isAdmin = true; isBrygadzista = false; currentBrygadzista = null;
     sessionStorage.setItem('mag_session', 'admin');
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('modeBadge').textContent = 'ADMIN';
     document.getElementById('modeBadge').className = 'mode-badge admin';
     document.getElementById('guestBanner').classList.remove('show');
-    applyMode();
-    loadFromCloud();
+    applyMode(); loadFromCloud();
   }
 
   function loginGuest() {
-    isAdmin = false;
+    isAdmin = false; isBrygadzista = false; currentBrygadzista = null;
     sessionStorage.setItem('mag_session', 'guest');
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('modeBadge').textContent = 'GOŚĆ';
     document.getElementById('modeBadge').className = 'mode-badge guest';
     document.getElementById('guestBanner').classList.add('show');
-    applyMode();
-    loadFromCloud();
+    applyMode(); loadFromCloud();
+  }
+
+  function loginBrygadzista() {
+    const pwd = document.getElementById('loginInput').value;
+    const found = brygadzisci.find(b => b.haslo && b.haslo === pwd && b.imie);
+    if (!found) {
+      document.getElementById('loginError').style.display = 'block';
+      document.getElementById('loginError').textContent = 'Nieprawidłowe hasło lub brak uprawnień';
+      return;
+    }
+    isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
+    sessionStorage.setItem('mag_session', 'brygadzista_' + found.id);
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
+    document.getElementById('modeBadge').className = 'mode-badge brygadzista';
+    document.getElementById('guestBanner').classList.remove('show');
+    applyMode(); loadFromCloud();
   }
 
   function logout() {
     sessionStorage.removeItem('mag_session');
+    isAdmin = false; isBrygadzista = false; currentBrygadzista = null;
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('loginInput').value = '';
     document.getElementById('loginError').style.display = 'none';
+    document.getElementById('loginError').textContent = 'Nieprawidłowe hasło';
   }
 
   // Auto-login from session on page refresh
   window.addEventListener('load', () => {
     const session = sessionStorage.getItem('mag_session');
     if(session === 'admin') {
-      isAdmin = true;
+      isAdmin = true; isBrygadzista = false;
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('modeBadge').textContent = 'ADMIN';
       document.getElementById('modeBadge').className = 'mode-badge admin';
       document.getElementById('guestBanner').classList.remove('show');
-      applyMode();
-      loadFromCloud();
+      applyMode(); loadFromCloud();
     } else if(session === 'guest') {
-      isAdmin = false;
+      isAdmin = false; isBrygadzista = false;
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('modeBadge').textContent = 'GOŚĆ';
       document.getElementById('modeBadge').className = 'mode-badge guest';
       document.getElementById('guestBanner').classList.add('show');
-      applyMode();
-      loadFromCloud();
+      applyMode(); loadFromCloud();
+    } else if(session && session.startsWith('brygadzista_')) {
+      // Will be restored after cloud load
+      loadFromCloud().then(() => {
+        const id = parseInt(session.split('_')[1]);
+        const found = brygadzisci.find(b => b.id === id);
+        if(found && found.imie) {
+          isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
+          document.getElementById('loginScreen').classList.add('hidden');
+          document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
+          document.getElementById('modeBadge').className = 'mode-badge brygadzista';
+          applyMode(); render();
+        } else {
+          sessionStorage.removeItem('mag_session');
+        }
+      });
+      return;
     }
     setTimeout(() => {
       setupScannerInput('prz-art', 'tab-przychod');
@@ -442,11 +528,16 @@ window.addEventListener('load', function() {
   });
 
   function applyMode() {
-    // Show/hide input rows and action buttons based on mode
-    ['mag-input-row','prz-input-row','roz-input-row'].forEach(id => {
-      document.getElementById(id).style.display = isAdmin ? 'flex' : 'none';
+    const adminOnly = ['mag-input-row','prz-input-row','roz-input-row'];
+    adminOnly.forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.display = isAdmin ? 'flex' : 'none';
     });
     document.getElementById('th-actions').style.display = isAdmin ? '' : 'none';
+    // Zamówienia tab - visible for admin and brygadzista
+    document.getElementById('tab-btn-zam').style.display = (isAdmin || isBrygadzista) ? '' : 'none';
+    // Brygadziści tab - only admin
+    document.getElementById('tab-btn-bry').style.display = isAdmin ? '' : 'none';
   }
 
   document.getElementById('loginInput').addEventListener('keydown', e => {
@@ -466,25 +557,31 @@ window.addEventListener('load', function() {
     try {
       const res = await fetch(BASE_URL + '/latest', {
         method: 'GET',
-        headers: {
-          'X-Master-Key': API_KEY,
-          'X-Bin-Meta': 'false'
-        }
+        headers: { 'X-Master-Key': API_KEY, 'X-Bin-Meta': 'false' }
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       magazyn  = data.magazyn  || [];
       przychod = data.przychod || [];
       rozchod  = data.rozchod  || [];
+      zamowienia = data.zamowienia || [];
+      if(data.brygadzisci && data.brygadzisci.length === 10) {
+        brygadzisci = data.brygadzisci;
+      }
       setSyncStatus('ok', 'Dane zsynchronizowane — ' + new Date().toLocaleTimeString('pl-PL'));
       render();
+      return Promise.resolve();
     } catch(e) {
       console.error('Load error:', e);
       setSyncStatus('error', 'Błąd połączenia — dane lokalne');
       magazyn  = JSON.parse(localStorage.getItem('mag_magazyn')  || '[]');
       przychod = JSON.parse(localStorage.getItem('mag_przychod') || '[]');
       rozchod  = JSON.parse(localStorage.getItem('mag_rozchod')  || '[]');
+      zamowienia = JSON.parse(localStorage.getItem('mag_zamowienia') || '[]');
+      const savedBry = localStorage.getItem('mag_brygadzisci');
+      if(savedBry) brygadzisci = JSON.parse(savedBry);
       render();
+      return Promise.resolve();
     }
   }
 
@@ -495,13 +592,15 @@ window.addEventListener('load', function() {
 
   function saveToCloud() {
     // Save locally immediately
-    localStorage.setItem('mag_magazyn',  JSON.stringify(magazyn));
-    localStorage.setItem('mag_przychod', JSON.stringify(przychod));
-    localStorage.setItem('mag_rozchod',  JSON.stringify(rozchod));
+    localStorage.setItem('mag_magazyn',     JSON.stringify(magazyn));
+    localStorage.setItem('mag_przychod',    JSON.stringify(przychod));
+    localStorage.setItem('mag_rozchod',     JSON.stringify(rozchod));
+    localStorage.setItem('mag_zamowienia',  JSON.stringify(zamowienia));
+    localStorage.setItem('mag_brygadzisci', JSON.stringify(brygadzisci));
     // Schedule cloud save after 5 seconds
     pendingSave = true;
     clearTimeout(saveDebounceTimer);
-    saveDebounceTimer = setTimeout(() => doCloudSave(), 30000);
+    saveDebounceTimer = setTimeout(() => doCloudSave(), 3000);
     setSyncStatus('loading', 'Zapisano lokalnie...');
   }
 
@@ -513,7 +612,7 @@ window.addEventListener('load', function() {
       const res = await fetch(BASE_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
-        body: JSON.stringify({ magazyn, przychod, rozchod })
+        body: JSON.stringify({ magazyn, przychod, rozchod, zamowienia, brygadzisci })
       });
       if(!res.ok) throw new Error('HTTP ' + res.status);
       setSyncStatus('ok', 'Zapisano — ' + new Date().toLocaleTimeString('pl-PL'));
@@ -600,6 +699,8 @@ window.addEventListener('load', function() {
     const ilosc=parseInt(document.getElementById('prz-ilosc').value)||1;
     if(!art) return;
     przychod.push({id:Date.now(),artykul:art,opis:getOpis(art),grupa:getGrupa(art),data:today(),ilosc});
+    // Auto-mark zamowienia as Dostarczono
+    zamowienia.forEach(z => { if(z.artykul===art && z.status!=='Dostarczono') z.status='Dostarczono'; });
     document.getElementById('prz-art').value='';
     document.getElementById('prz-ilosc').value='1';
     saveToCloud(); render();
@@ -671,14 +772,169 @@ window.addEventListener('load', function() {
         </tr>`).join('');
   }
 
-  function render() { renderMagazyn(); renderPrzychod(); renderRozchod(); }
+  function render() { renderMagazyn(); renderPrzychod(); renderRozchod(); renderZamowienia(); renderBrygadzisci(); }
   function setFilter(g) { filterGrupa=g; render(); }
+  function setZamFilter(g) { zamFilterGrupa=g; renderZamowienia(); }
+
+  function grupColor(g) {
+    const colors = { UBR:'#22c55e', STA:'#3b82f6', NAR:'#f59e0b' };
+    return colors[g] || '#8b5cf6';
+  }
   function switchTab(name,btn) {
     document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
     document.getElementById(`tab-${name}`).classList.add('active');
     btn.classList.add('active');
     if(name==='qr') renderQR();
+  }
+
+  // ─── ZAMÓWIENIA ───
+  const STATUS_COLORS = { 'Nowe':'#f59e0b', 'Zamówione':'#3b82f6', 'Dostarczono':'#16a34a' };
+
+  function renderZamowienia() {
+    const form = document.getElementById('zam-brygadzista-form');
+    const thActions = document.getElementById('zam-th-actions');
+    if(!form) return;
+    if(isBrygadzista) {
+      form.style.display = 'block';
+      thActions.style.display = 'none';
+
+      // Render group filters
+      const grupy = ['ALL', ...new Set(magazyn.map(m => getGrupa(m.artykul)))];
+      document.getElementById('zam-filters').innerHTML = grupy.map(g => {
+        const isActive = zamFilterGrupa === g;
+        const cls = isActive ? filterClass(g) : '';
+        return `<button class="filter-btn ${cls}" onclick="setZamFilter('${g}')">${g}</button>`;
+      }).join('');
+
+      // Filter magazyn by group
+      const filtered = zamFilterGrupa === 'ALL' ? magazyn : magazyn.filter(m => getGrupa(m.artykul) === zamFilterGrupa);
+
+      document.getElementById('zam-artykul-list').innerHTML = filtered.map(m => `
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f0f0f0;">
+          <input type="checkbox" id="zam-chk-${m.id}" style="width:18px;height:18px;cursor:pointer;">
+          <label for="zam-chk-${m.id}" style="flex:1;cursor:pointer;">
+            <span style="font-family:'DM Mono',monospace;font-weight:700;">${m.artykul}</span>
+            <span style="color:#888;margin-left:8px;font-size:12px;">${m.opis}</span>
+            <span style="background:${grupColor(getGrupa(m.artykul))}22;color:${grupColor(getGrupa(m.artykul))};border:1px solid ${grupColor(getGrupa(m.artykul))}44;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;">${getGrupa(m.artykul)}</span>
+          </label>
+          <input type="number" id="zam-qty-${m.id}" value="1" min="1"
+            style="width:70px;border:1.5px solid #e0e0e0;border-radius:6px;padding:6px;font-size:13px;text-align:center;">
+        </div>`).join('');
+    } else {
+      form.style.display = 'none';
+      if(thActions) thActions.style.display = isAdmin ? '' : 'none';
+    }
+
+    const tbody = document.getElementById('zam-tbody');
+    if(zamowienia.length === 0) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="8">Brak zamówień</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = zamowienia.map((z,i) => {
+      const sc = STATUS_COLORS[z.status] || '#888';
+      const isWolne = z.wolne || z.artykul === '[OPIS]';
+      const artCell = isWolne
+        ? `<span style="background:#f3e8ff;color:#7e22ce;padding:2px 8px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;font-weight:700;">OPIS</span>`
+        : `<span class="td-art">${z.artykul}</span>`;
+      return `<tr style="${isWolne?'background:#faf5ff;':''}">
+        <td class="td-nr">${i+1}</td>
+        <td>${artCell}</td>
+        <td>${z.opis}</td>
+        <td style="font-weight:700;font-family:'DM Mono',monospace;">${z.ilosc}</td>
+        <td style="font-size:12px;color:#555;">${z.zamawiajacy}</td>
+        <td class="td-data">${z.data}</td>
+        <td><span style="background:${sc}22;color:${sc};border:1px solid ${sc}44;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${z.status}</span></td>
+        <td>${isAdmin ? `<div style="display:flex;gap:4px;">
+          ${z.status==='Nowe'?`<button class="btn-rename" onclick="changeZamStatus(${z.id},'Zamówione')" title="Zamówione">📦</button>`:''}
+          ${z.status==='Zamówione'&&isWolne?`<button class="btn-rename" onclick="changeZamStatus(${z.id},'Dostarczono')" title="Dostarczono" style="color:#16a34a;">✅</button>`:''}
+          <button class="btn-del" onclick="delZam(${z.id})" title="Usuń">🗑</button>
+        </div>` : ''}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function submitZamowienie() {
+    const checked = magazyn.filter(m => {
+      const chk = document.getElementById('zam-chk-'+m.id);
+      return chk && chk.checked;
+    });
+    const freeOpis = document.getElementById('zam-opis-free').value.trim();
+    const freeQty = parseInt(document.getElementById('zam-qty-free').value) || 1;
+
+    if(checked.length === 0 && !freeOpis) {
+      alert('Zaznacz artykuł lub opisz co potrzebujesz!');
+      return;
+    }
+
+    // Standard orders from list
+    checked.forEach(m => {
+      const qtyEl = document.getElementById('zam-qty-'+m.id);
+      const qty = parseInt(qtyEl ? qtyEl.value : 1) || 1;
+      zamowienia.push({
+        id: Date.now() + Math.random(),
+        artykul: m.artykul, opis: m.opis, ilosc: qty,
+        zamawiajacy: currentBrygadzista.imie + ' ' + currentBrygadzista.nazwisko,
+        data: today(), status: 'Nowe', wolne: false
+      });
+    });
+
+    // Free text order
+    if(freeOpis) {
+      zamowienia.push({
+        id: Date.now() + Math.random(),
+        artykul: '[OPIS]', opis: freeOpis, ilosc: freeQty,
+        zamawiajacy: currentBrygadzista.imie + ' ' + currentBrygadzista.nazwisko,
+        data: today(), status: 'Nowe', wolne: true
+      });
+      document.getElementById('zam-opis-free').value = '';
+      document.getElementById('zam-qty-free').value = '1';
+    }
+
+    saveToCloud(); render();
+    showToast('✓ Zamówienie wysłane!');
+  }
+
+  function changeZamStatus(id, newStatus) {
+    const z = zamowienia.find(x => x.id === id);
+    if(z) { z.status = newStatus; saveToCloud(); render(); }
+  }
+
+  function delZam(id) {
+    if(!confirm('Usunąć zamówienie?')) return;
+    zamowienia = zamowienia.filter(z => z.id !== id);
+    saveToCloud(); render();
+  }
+
+  // ─── BRYGADZIŚCI ───
+  function renderBrygadzisci() {
+    const tbody = document.getElementById('bry-tbody');
+    if(!tbody || !isAdmin) return;
+    tbody.innerHTML = brygadzisci.map(b => `
+      <tr>
+        <td class="td-nr">${b.id}</td>
+        <td><input value="${b.imie}" placeholder="Imię"
+          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:120px;"
+          onchange="updateBry(${b.id},'imie',this.value)"></td>
+        <td><input value="${b.nazwisko}" placeholder="Nazwisko"
+          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:140px;"
+          onchange="updateBry(${b.id},'nazwisko',this.value)"></td>
+        <td><input value="${b.haslo}" placeholder="Hasło"
+          style="border:1.5px solid #e0e0e0;border-radius:6px;padding:8px;font-size:13px;width:120px;font-family:'DM Mono',monospace;"
+          onchange="updateBry(${b.id},'haslo',this.value)"></td>
+        <td><button class="btn-del" onclick="clearBry(${b.id})" title="Wyczyść">🗑</button></td>
+      </tr>`).join('');
+  }
+
+  function updateBry(id, field, value) {
+    const b = brygadzisci.find(x => x.id === id);
+    if(b) { b[field] = value.trim(); saveToCloud(); }
+  }
+
+  function clearBry(id) {
+    if(!confirm('Wyczyścić tego brygadzistę?')) return;
+    const b = brygadzisci.find(x => x.id === id);
+    if(b) { b.imie=''; b.nazwisko=''; b.haslo=''; saveToCloud(); renderBrygadzisci(); }
   }
 
   // ─── QR CODES ───
