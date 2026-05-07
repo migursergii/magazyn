@@ -195,13 +195,15 @@ window.addEventListener('load', function() {
     .btn { padding:9px 14px; font-size:12px; }
     .btn-export { padding:7px 12px; font-size:11px; }
     .login-box { width:90%; padding:28px 24px; }
-    /* Hide Grupa column on mobile (col 4) */
-    th:nth-child(4), td:nth-child(4) { display:none; }
+    /* Hide Grupa column on mobile (col 4) - NOT in zamowienia where col4=Ilość */
+    #tab-magazyn th:nth-child(4), #tab-magazyn td:nth-child(4) { display:none; }
+    #tab-przychod th:nth-child(4), #tab-przychod td:nth-child(4) { display:none; }
+    #tab-rozchod th:nth-child(4), #tab-rozchod td:nth-child(4) { display:none; }
     #tab-przychod th:nth-child(5), #tab-przychod td:nth-child(5) { display:none; }
     #tab-rozchod th:nth-child(5), #tab-rozchod td:nth-child(5) { display:none; }
-    /* Zamowienia: hide Data(col6) and Zamawiający(col5) on mobile, keep Ilość(col4) */
-    #tab-zamowienia th:nth-child(5), #tab-zamowienia td:nth-child(5) { display:none; } /* Zamawiający */
-    #tab-zamowienia th:nth-child(6), #tab-zamowienia td:nth-child(6) { display:none; } /* Data */
+    /* Zamowienia: keep Ilość(col4), hide Zamawiający(col5) and Data(col6) */
+    #tab-zamowienia th:nth-child(5), #tab-zamowienia td:nth-child(5) { display:none; }
+    #tab-zamowienia th:nth-child(6), #tab-zamowienia td:nth-child(6) { display:none; }
     #tab-przychod th:nth-child(7), #tab-przychod td:nth-child(7) { display:none; }
     #tab-rozchod th:nth-child(7), #tab-rozchod td:nth-child(7) { display:none; }
     .filters { gap:4px; }
@@ -477,8 +479,7 @@ window.addEventListener('load', function() {
     isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
     sessionStorage.setItem('mag_session', 'brygadzista_' + found.id);
     document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
-    document.getElementById('modeBadge').className = 'mode-badge brygadzista';
+    document.getElementById('modeBadge').style.display = 'none';
     document.getElementById('guestBanner').classList.remove('show');
     applyMode(); render();
     setSyncStatus('ok', 'Zalogowano jako ' + found.imie);
