@@ -199,9 +199,9 @@ window.addEventListener('load', function() {
     th:nth-child(4), td:nth-child(4) { display:none; }
     #tab-przychod th:nth-child(5), #tab-przychod td:nth-child(5) { display:none; }
     #tab-rozchod th:nth-child(5), #tab-rozchod td:nth-child(5) { display:none; }
-    /* Zamowienia table - hide less important cols on mobile */
+    /* Zamowienia: hide Data(col6) and Zamawiający(col5) on mobile, keep Ilość(col4) */
+    #tab-zamowienia th:nth-child(5), #tab-zamowienia td:nth-child(5) { display:none; } /* Zamawiający */
     #tab-zamowienia th:nth-child(6), #tab-zamowienia td:nth-child(6) { display:none; } /* Data */
-    #tab-brygadzisci th:nth-child(4) { display:none; } /* hide nothing, show all */
     #tab-przychod th:nth-child(7), #tab-przychod td:nth-child(7) { display:none; }
     #tab-rozchod th:nth-child(7), #tab-rozchod td:nth-child(7) { display:none; }
     .filters { gap:4px; }
@@ -450,6 +450,7 @@ window.addEventListener('load', function() {
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('modeBadge').textContent = 'ADMIN';
     document.getElementById('modeBadge').className = 'mode-badge admin';
+    document.getElementById('modeBadge').style.display = '';
     document.getElementById('guestBanner').classList.remove('show');
     applyMode(); loadFromCloud();
   }
@@ -460,6 +461,7 @@ window.addEventListener('load', function() {
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('modeBadge').textContent = 'GOŚĆ';
     document.getElementById('modeBadge').className = 'mode-badge guest';
+    document.getElementById('modeBadge').style.display = '';
     document.getElementById('guestBanner').classList.add('show');
     applyMode(); loadFromCloud();
   }
@@ -516,8 +518,7 @@ window.addEventListener('load', function() {
         if(found && found.imie) {
           isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
           document.getElementById('loginScreen').classList.add('hidden');
-          document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
-          document.getElementById('modeBadge').className = 'mode-badge brygadzista';
+          document.getElementById('modeBadge').style.display = 'none';
           applyMode(); render();
         } else {
           sessionStorage.removeItem('mag_session');
@@ -925,6 +926,14 @@ window.addEventListener('load', function() {
     if(checked.length === 0 && !freeOpis) {
       alert('Zaznacz artykuł lub opisz co potrzebujesz!');
       return;
+    }
+
+    // Check stock levels and warn
+    const warnings = checked.filter(m => getStan(m.artykul) > 0);
+    if(warnings.length > 0) {
+      const msg = warnings.map(m => `• ${m.artykul} (${m.opis}): na stanie jest ${getStan(m.artykul)} szt.`).join('\n');
+      const ok = confirm(`⚠️ Uwaga!\nNastępujące artykuły są dostępne na stanie:\n\n${msg}\n\nCzy na pewno chcesz złożyć zamówienie?`);
+      if(!ok) return;
     }
 
     // Standard orders from list
