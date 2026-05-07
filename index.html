@@ -227,17 +227,17 @@ window.addEventListener('load', function() {
 </div>
 
 <header>
-  <div class="logo">📦 <span>Magazyn</span></div>
+  <div class="logo">📦 <span>Magazyn</span> <span id="logo-name" style="display:none;font-size:13px;color:#4ade80;font-weight:600;margin-left:8px;"></span></div>
   <div class="header-right">
     <span class="mode-badge admin" id="modeBadge">ADMIN</span>
     <button class="logout-btn" onclick="logout()" style="display:none;" id="logout-desktop">← Wyjdź</button>
   </div>
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('magazyn',this)">Magazyn</button>
-    <button class="tab-btn" onclick="switchTab('przychod',this)">🟢 Przychód</button>
-    <button class="tab-btn" onclick="switchTab('rozchod',this)">🔴 Rozchód</button>
+    <button class="tab-btn" id="tab-btn-prz" onclick="switchTab('przychod',this)">🟢 Przychód</button>
+    <button class="tab-btn" id="tab-btn-roz" onclick="switchTab('rozchod',this)">🔴 Rozchód</button>
     <button class="tab-btn" id="tab-btn-zam" onclick="switchTab('zamowienia',this)" style="display:none">📋 Zamówienia</button>
-    <button class="tab-btn" onclick="switchTab('qr',this)">📱 QR Kody</button>
+    <button class="tab-btn" id="tab-btn-qr" onclick="switchTab('qr',this)">📱 QR Kody</button>
     <button class="tab-btn" id="tab-btn-bry" onclick="switchTab('brygadzisci',this)" style="display:none">👷 Brygadziści</button>
     <button class="tab-btn" onclick="logout()" style="margin-left:auto;color:#ef4444;border-bottom-color:transparent;">← Wyjdź</button>
   </div>
@@ -431,6 +431,8 @@ window.addEventListener('load', function() {
   let brygadzisci = Array(10).fill(null).map((_,i) => ({id: i+1, imie:'', nazwisko:'', haslo:''}));
   let filterGrupa = 'ALL';
   let zamFilterGrupa = 'ALL';
+  let magPage = 1;
+  const PAGE_SIZE = 30;
   let isAdmin = false;
   let isBrygadzista = false;
   let currentBrygadzista = null; // {id, imie, nazwisko}
@@ -464,44 +466,20 @@ window.addEventListener('load', function() {
 
   function loginBrygadzista() {
     const pwd = document.getElementById('loginInput').value;
-    // First try with already-loaded brygadzisci
-    const tryLogin = () => {
-      const found = brygadzisci.find(b => b.haslo && b.haslo === pwd && b.imie);
-      if (!found) {
-        document.getElementById('loginError').style.display = 'block';
-        document.getElementById('loginError').textContent = 'Nieprawidłowe hasło lub brak uprawnień';
-        return false;
-      }
-      isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
-      sessionStorage.setItem('mag_session', 'brygadzista_' + found.id);
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
-      document.getElementById('modeBadge').className = 'mode-badge brygadzista';
-      document.getElementById('guestBanner').classList.remove('show');
-      applyMode(); render();
-      return true;
-    };
-
-    // If brygadzisci not loaded yet - load from cloud first
-    if(brygadzisci.every(b => !b.imie)) {
-      setSyncStatus('loading', 'Ładowanie...');
-      fetch(BASE_URL + '/latest', { method:'GET', headers:{'X-Master-Key':API_KEY,'X-Bin-Meta':'false'} })
-        .then(r => r.json())
-        .then(data => {
-          if(data.brygadzisci && data.brygadzisci.length === 10) brygadzisci = data.brygadzisci;
-          magazyn = data.magazyn || []; przychod = data.przychod || [];
-          rozchod = data.rozchod || []; zamowienia = data.zamowienia || [];
-          if(!tryLogin()) setSyncStatus('error', 'Błąd logowania');
-          else setSyncStatus('ok', 'Zalogowano');
-        })
-        .catch(() => {
-          const saved = localStorage.getItem('mag_brygadzisci');
-          if(saved) brygadzisci = JSON.parse(saved);
-          tryLogin();
-        });
-    } else {
-      tryLogin();
+    const found = brygadzisci.find(b => b.haslo && b.haslo === pwd && b.imie);
+    if (!found) {
+      document.getElementById('loginError').style.display = 'block';
+      document.getElementById('loginError').textContent = 'Nieprawidłowe hasło';
+      return;
     }
+    isAdmin = false; isBrygadzista = true; currentBrygadzista = found;
+    sessionStorage.setItem('mag_session', 'brygadzista_' + found.id);
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('modeBadge').textContent = found.imie.toUpperCase();
+    document.getElementById('modeBadge').className = 'mode-badge brygadzista';
+    document.getElementById('guestBanner').classList.remove('show');
+    applyMode(); render();
+    setSyncStatus('ok', 'Zalogowano jako ' + found.imie);
   }
 
   function logout() {
@@ -560,15 +538,49 @@ window.addEventListener('load', function() {
       if(el) el.style.display = isAdmin ? 'flex' : 'none';
     });
     document.getElementById('th-actions').style.display = isAdmin ? '' : 'none';
-    // Zamówienia tab - visible for admin and brygadzista
+
+    // Przychód/Rozchód/QR — only admin
+    ['tab-btn-prz','tab-btn-roz','tab-btn-qr'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.display = isAdmin ? '' : 'none';
+    });
+
+    // Zamówienia — admin and brygadzista
     document.getElementById('tab-btn-zam').style.display = (isAdmin || isBrygadzista) ? '' : 'none';
-    // Brygadziści tab - only admin
+
+    // Brygadziści — only admin
     document.getElementById('tab-btn-bry').style.display = isAdmin ? '' : 'none';
+
+    // Show brygadzista name in logo area
+    const logo = document.getElementById('logo-name');
+    if(isBrygadzista && currentBrygadzista) {
+      logo.textContent = currentBrygadzista.imie + ' ' + currentBrygadzista.nazwisko;
+      logo.style.display = 'block';
+    } else {
+      logo.style.display = 'none';
+    }
   }
 
   document.getElementById('loginInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') loginAdmin();
   });
+
+  // Preload brygadzisci data in background when login screen is visible
+  // so brygadzista login is instant
+  (async function preloadData() {
+    try {
+      const res = await fetch(BASE_URL + '/latest', { method:'GET', headers:{'X-Master-Key':API_KEY,'X-Bin-Meta':'false'} });
+      if(!res.ok) throw new Error();
+      const data = await res.json();
+      magazyn = data.magazyn || []; przychod = data.przychod || [];
+      rozchod = data.rozchod || []; zamowienia = data.zamowienia || [];
+      if(data.brygadzisci && data.brygadzisci.length === 10) brygadzisci = data.brygadzisci;
+      localStorage.setItem('mag_brygadzisci', JSON.stringify(brygadzisci));
+    } catch(e) {
+      const saved = localStorage.getItem('mag_brygadzisci');
+      if(saved) brygadzisci = JSON.parse(saved);
+    }
+  })();
 
   // ─── CLOUD ───
   function setSyncStatus(status, text) {
@@ -749,12 +761,17 @@ window.addEventListener('load', function() {
       const isActive=filterGrupa===g;
       return `<button class="filter-btn ${isActive?filterClass(g):''}" onclick="setFilter('${g}')">${g}</button>`;
     }).join('');
-    const filtered=filterGrupa==='ALL'?magazyn:magazyn.filter(m=>getGrupa(m.artykul)===filterGrupa);
-    document.getElementById('mag-tbody').innerHTML=filtered.length===0
-      ?`<tr class="empty-row"><td colspan="6">Brak artykułów${isAdmin?' — dodaj pierwszy powyżej':''}</td></tr>`
-      :filtered.map((m,i)=>`
+
+    const filtered = filterGrupa==='ALL' ? magazyn : magazyn.filter(m=>getGrupa(m.artykul)===filterGrupa);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if(magPage > totalPages) magPage = totalPages;
+    const pageItems = filtered.slice((magPage-1)*PAGE_SIZE, magPage*PAGE_SIZE);
+
+    document.getElementById('mag-tbody').innerHTML = pageItems.length===0
+      ? `<tr class="empty-row"><td colspan="6">Brak artykułów${isAdmin?' — dodaj pierwszy powyżej':''}</td></tr>`
+      : pageItems.map((m,i) => `
         <tr>
-          <td class="td-nr">${i+1}</td>
+          <td class="td-nr">${(magPage-1)*PAGE_SIZE + i+1}</td>
           <td class="td-art">${m.artykul}</td>
           <td>${m.opis}</td>
           <td>${badgeHtml(getGrupa(m.artykul))}</td>
@@ -766,7 +783,24 @@ window.addEventListener('load', function() {
             </div>
           </td>
         </tr>`).join('');
+
+    // Pagination controls
+    let paginEl = document.getElementById('mag-pagination');
+    if(!paginEl) {
+      paginEl = document.createElement('div');
+      paginEl.id = 'mag-pagination';
+      paginEl.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:#f8f9fb;border-top:1px solid #eee;';
+      document.getElementById('mag-tbody').closest('table').after(paginEl);
+    }
+    if(totalPages <= 1) { paginEl.style.display='none'; return; }
+    paginEl.style.display = 'flex';
+    paginEl.innerHTML = `
+      <button onclick="setMagPage(${magPage-1})" ${magPage===1?'disabled':''} style="border:1px solid #e0e0e0;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;">‹</button>
+      <span style="font-family:'DM Mono',monospace;font-size:12px;color:#555;">Strona ${magPage} / ${totalPages} (${filtered.length} artykułów)</span>
+      <button onclick="setMagPage(${magPage+1})" ${magPage===totalPages?'disabled':''} style="border:1px solid #e0e0e0;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;">›</button>`;
   }
+
+  function setMagPage(p) { magPage = p; renderMagazyn(); }
 
   function renderPrzychod() {
     document.getElementById('prz-tbody').innerHTML=przychod.length===0
@@ -799,7 +833,7 @@ window.addEventListener('load', function() {
   }
 
   function render() { renderMagazyn(); renderPrzychod(); renderRozchod(); renderZamowienia(); renderBrygadzisci(); }
-  function setFilter(g) { filterGrupa=g; render(); }
+  function setFilter(g) { filterGrupa=g; magPage=1; render(); }
   function setZamFilter(g) { zamFilterGrupa=g; renderZamowienia(); }
 
   function grupColor(g) {
