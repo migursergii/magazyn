@@ -559,10 +559,10 @@ window.addEventListener('load', function() {
     const bryEl = document.getElementById('tab-btn-bry');
     if(bryEl) bryEl.style.display = isAdmin ? '' : 'none';
 
-    // Wyjdź — hide for guest
+    // Wyjdź — show for everyone
     document.querySelectorAll('.tab-btn').forEach(btn => {
       if(btn.getAttribute('onclick') === 'logout()') {
-        btn.style.display = (!isAdmin && !isBrygadzista) ? 'none' : '';
+        btn.style.display = '';
       }
     });
 
